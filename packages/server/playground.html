@@ -24,26 +24,14 @@
         {
           x: -20,
           z: (SLOT_DEPTH + SPACE_BETWEEN_SLOTS) * 0,
-          documentUrl: `${EXAMPLES_HOST_URL}/duck.html`,
-          title: "The Duck",
+          documentUrl: `${EXAMPLES_HOST_URL}/positionProbe.html`,
+          title: "The Position Probe",
         },
         {
           x: -20,
           z: (SLOT_DEPTH + SPACE_BETWEEN_SLOTS) * 1,
-          documentUrl: `${EXAMPLES_HOST_URL}/dice.html`,
-          title: "The Dice",
-        },
-        {
-          x: -20,
-          z: (SLOT_DEPTH + SPACE_BETWEEN_SLOTS) * 2,
-          documentUrl: `${EXAMPLES_HOST_URL}/videoplayer.html`,
-          title: "Video Player",
-        },
-        {
-          x: -20,
-          z: (SLOT_DEPTH + SPACE_BETWEEN_SLOTS) * 3,
-          documentUrl: `${EXAMPLES_HOST_URL}/weather.html`,
-          title: "Weather API",
+          documentUrl: `${EXAMPLES_HOST_URL}/maze.html`,
+          title: "The Maze",
         },
       ];
 
@@ -96,8 +84,8 @@
             ></m-cube>`;
 
           const removeDocumentContent = `
-            <m-group 
-              class="remove-document" 
+            <m-group
+              class="remove-document"
               visible-to=""
               x="${(SLOT_WIDTH - SLOT_BORDER_THICKNESS) / 2}"
               z="${(SLOT_DEPTH - SLOT_BORDER_THICKNESS) / 2}"
