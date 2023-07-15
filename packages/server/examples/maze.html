@@ -1,0 +1,352 @@
+<m-group id="maze">
+</m-group>
+
+<script>
+  const mazeContainer = document.getElementById("maze");
+
+  const directions = [
+    [1, 0],
+    [0, -1],
+    [-1, 0],
+    [0, 1],
+  ];
+
+  class Cell {
+    static cellSize = 3;
+    static wallWidth = 0.5;
+    static wallDepth = 0.5;
+    static wallHeight = 3;
+
+    constructor(row, column) {
+      this.row = row;
+      this.column = column;
+      this.walls = [true, true, true, true];
+      this.visited = false;
+      this.position = Cell.getPosition(row, column);
+    }
+
+    // returns the position of the center of the cell in the world
+    static getPosition(row, col) {
+      return {
+        x: ((2 * col + 1) * Cell.cellSize) / 2 + col * Cell.wallWidth,
+        y: 0,
+        z: ((2 * row + 1) * Cell.cellSize) / 2 + row * Cell.wallDepth,
+      };
+    }
+
+    spawnCellWalls() {
+      const colors = ["red", "green", "blue", "yellow"];
+      for (let i = 0; i < 4; i++) {
+        if (this.walls[i]) {
+          const wall = document.createElement("m-cube");
+          wall.setAttribute(
+            "x",
+            this.position.x +
+              (directions[i][1] * Cell.cellSize) / 2 +
+              (directions[i][1] * Cell.wallWidth) / 2,
+          );
+          wall.setAttribute("y", Cell.wallHeight / 2);
+          wall.setAttribute(
+            "z",
+            this.position.z +
+              (directions[i][0] * Cell.cellSize) / 2 +
+              (directions[i][0] * Cell.wallDepth) / 2,
+          );
+
+          wall.setAttribute("color", "gray");
+
+          wall.setAttribute(
+            "sx",
+            directions[i][1] === 0 ? Cell.cellSize + Cell.wallWidth : Cell.wallWidth,
+          );
+          wall.setAttribute("sy", Cell.wallHeight);
+          wall.setAttribute(
+            "sz",
+            directions[i][0] === 0 ? Cell.cellSize + Cell.wallDepth : Cell.wallDepth,
+          );
+
+          mazeContainer.appendChild(wall);
+        }
+      }
+    }
+
+    spawnCellLabel() {
+      const label = document.createElement("m-label");
+      label.setAttribute("x", this.position.x);
+      label.setAttribute("y", this.position.y + 0.1);
+      label.setAttribute("z", this.position.z);
+      label.setAttribute("content", `(y:${this.row}, x: ${this.column})`);
+      label.setAttribute("width", "2");
+      label.setAttribute("rx", "-90");
+      mazeContainer.appendChild(label);
+    }
+  }
+
+  class Maze {
+    constructor() {
+      this.gridSize = 10;
+      this.grid = [];
+      this.createGrid();
+      this.currentCell = this.grid[0][0];
+
+      this.doors = {};
+
+      // Create Entrance
+      this.currentCell.walls[1] = false;
+      this.createDoor(this.currentCell, 1);
+
+      // Create Exit
+      this.grid[this.gridSize - 1][this.gridSize - 1].walls[0] = false;
+      this.createDoor(this.grid[this.gridSize - 1][this.gridSize - 1], 0);
+
+      this.metadata = {
+        creator: "@daarfi",
+        description: "A maze generated using the Hunt and Kill algorithm",
+        createMazePerformance: 0,
+        spawnMazePerformance: 0,
+      };
+
+      let t0 = performance.now();
+      this.createMaze();
+      let t1 = performance.now();
+      console.log("Call to createMaze took " + (t1 - t0) + " milliseconds.");
+      this.metadata.createMazePerformance = t1 - t0;
+
+      t0 = performance.now();
+      this.spawnMaze();
+      t1 = performance.now();
+      console.log("Call to spawnMaze took " + (t1 - t0) + " milliseconds.");
+      this.metadata.spawnMazePerformance = t1 - t0;
+
+      this.createInfoLabel();
+    }
+
+    // Creates cell objects and adds them to the grid array
+    createGrid() {
+      let rows = this.gridSize;
+      let cols = this.gridSize;
+      for (let y = 0; y < rows; y++) {
+        this.grid.push([]);
+        for (let x = 0; x < cols; x++) {
+          this.grid[y].push(new Cell(y, x));
+        }
+      }
+    }
+
+    createMaze() {
+      while (this.currentCell) {
+        this.huntAndKill();
+      }
+    }
+
+    // Implements hunt and kill algorithm to create a maze
+    huntAndKill() {
+      // Get unvisited neighbors of the current cell
+      const unvisitedNeighbors = this.getCellNeighbors(this.currentCell).filter(
+        (cell) => !cell.visited,
+      );
+
+      // If there are unvisited neighbors, choose one at random and remove the wall between it and the current cell
+      const randomNeighbor =
+        unvisitedNeighbors[Math.floor(Math.random() * unvisitedNeighbors.length)];
+
+      if (randomNeighbor) {
+        this.linkCells(randomNeighbor, this.currentCell);
+
+        // mark both cells as visited
+        this.currentCell.visited = true;
+        randomNeighbor.visited = true;
+
+        // update current cell
+        this.currentCell = randomNeighbor;
+      } else {
+        // We go hunting
+        this.currentCell = null;
+
+        // Loop through the grid until we find an unvisited cell with a visited neighbor
+        for (let row of this.grid) {
+          for (let cell of row) {
+            const visitedNeighbors = this.getCellNeighbors(cell).filter((cell) => cell.visited);
+
+            if (cell.visited === false && visitedNeighbors.length > 0) {
+              this.currentCell = cell;
+
+              // Choose a random visited neighbor and remove the wall between it and the current cell
+              const randomVisitedNeighbor =
+                visitedNeighbors[Math.floor(Math.random() * visitedNeighbors.length)];
+              this.linkCells(randomVisitedNeighbor, this.currentCell);
+              cell.visited = true;
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    // Removes the wall between two cells
+    linkCells(cellA, cellB) {
+      const rowDiff = cellB.row - cellA.row;
+      const colDiff = cellB.column - cellA.column;
+
+      if (rowDiff === 1) {
+        cellA.walls[0] = false;
+        cellB.walls[2] = false;
+      } else if (rowDiff === -1) {
+        cellA.walls[2] = false;
+        cellB.walls[0] = false;
+      } else if (colDiff === 1) {
+        cellA.walls[3] = false;
+        cellB.walls[1] = false;
+      } else if (colDiff === -1) {
+        cellA.walls[1] = false;
+        cellB.walls[3] = false;
+      }
+    }
+
+    getCellNeighbors(cell) {
+      const neighbors = [];
+      for (let i = 0; i < directions.length; i++) {
+        const neighborRow = cell.row + directions[i][0];
+        const neighborCol = cell.column + directions[i][1];
+
+        if (
+          neighborRow >= 0 &&
+          neighborRow < this.gridSize &&
+          neighborCol >= 0 &&
+          neighborCol < this.gridSize
+        ) {
+          neighbors.push(this.grid[neighborRow][neighborCol]);
+        }
+      }
+      return neighbors;
+    }
+
+    // Create objects for each cell in the grid
+    spawnMaze() {
+      for (let y = 0; y < this.grid.length; y++) {
+        for (let x = 0; x < this.grid[y].length; x++) {
+          // this.grid[y][x].spawnCellLabel();
+          this.grid[y][x].spawnCellWalls();
+        }
+      }
+    }
+
+    printMaze() {
+      let row = "";
+      for (let y = 0; y < this.grid.length; y++) {
+        for (let x = 0; x < this.grid[y].length; x++) {
+          row += `| ${this.grid[y][x].walls} |`;
+        }
+        row += "\n";
+      }
+      console.log(row);
+    }
+
+    createInfoLabel() {
+      const entranceNeighborCell = this.grid[1][0];
+      const labelWidth = 3;
+      const labelHeight = 2;
+
+      const label = document.createElement("m-label");
+      label.setAttribute(
+        "x",
+        entranceNeighborCell.position.x - 0.5 * Cell.cellSize - Cell.wallDepth - 0.1,
+      );
+      label.setAttribute(
+        "y",
+        entranceNeighborCell.position.y + Math.max(0.5 * Cell.wallHeight, 0.5 + labelHeight / 2),
+      );
+      label.setAttribute("z", entranceNeighborCell.position.z + (labelWidth - Cell.cellSize) / 2);
+
+      label.setAttribute(
+        "content",
+        `${this.metadata.creator}'s procedural maze\n${
+          this.metadata.description
+        }\n\nPerformance Stats:\nMaze Creation: ${this.metadata.createMazePerformance.toFixed(
+          2,
+        )} ms\nSpawn Maze: ${this.metadata.spawnMazePerformance.toFixed(2)} ms
+      `,
+      );
+      label.setAttribute("width", "3");
+      label.setAttribute("height", "2");
+      label.setAttribute("rx", "0");
+      label.setAttribute("ry", "-90");
+
+      label.setAttribute("font-size", "16");
+      label.setAttribute("alignment", "center");
+
+      mazeContainer.appendChild(label);
+    }
+
+    createDoor(cell, wallIndex) {
+      const door = document.createElement("m-cube");
+
+      const width = wallIndex % 2 === 0 ? Cell.cellSize + Cell.wallWidth / 2 : Cell.wallWidth;
+      const depth = wallIndex % 2 !== 0 ? Cell.cellSize + Cell.wallDepth / 2 : Cell.wallDepth;
+
+      const offset = directions[wallIndex];
+      const x = cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
+      const z = cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
+
+      door.setAttribute("width", width);
+      door.setAttribute("height", Cell.wallHeight + 0.001);
+      door.setAttribute("depth", depth);
+
+      door.setAttribute("x", x);
+      door.setAttribute("y", cell.position.y + Cell.wallHeight / 2);
+      door.setAttribute("z", z);
+
+      door.setAttribute("color", "#000000");
+
+      // open label
+      const label = document.createElement("m-label");
+      label.setAttribute("x", offset[1] * 0.5);
+      label.setAttribute("y", 0.5);
+      label.setAttribute("z", offset[0] * 0.5);
+      label.setAttribute("content", "Open");
+      label.setAttribute("width", "1");
+      label.setAttribute("height", ".5");
+      label.setAttribute("rx", "0");
+      label.setAttribute(
+        "ry",
+        `${wallIndex % 2 === 0 ? (wallIndex === 0 ? 0 : 1) * 180 : offset[1] * 90}`,
+      );
+
+      label.setAttribute("onclick", `openDoor(this.parentNode)`);
+
+      door.appendChild(label);
+      mazeContainer.appendChild(door);
+
+      this.doors[wallIndex] = door;
+    }
+
+    openDoor(door) {
+      const y = door.getAttribute("y");
+      const interval = setInterval(() => {
+        const newY = parseFloat(door.getAttribute("y")) - 0.1;
+        door.setAttribute("y", newY);
+        if (newY <= -Cell.wallHeight) {
+          clearInterval(interval);
+          setTimeout(() => this.closeDoor(door), 1000);
+        }
+      }, 100);
+    }
+
+    closeDoor(door) {
+      const y = Cell.wallHeight / 2 + 0.001;
+      const interval = setInterval(() => {
+        const newY = parseFloat(door.getAttribute("y")) + 0.1;
+        door.setAttribute("y", newY);
+        if (newY >= y) {
+          clearInterval(interval);
+        }
+      }, 100);
+    }
+  }
+
+  const maze = new Maze();
+
+  function openDoor(door) {
+    maze.openDoor(door);
+  }
+</script>
