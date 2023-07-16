@@ -3,6 +3,7 @@
 
 <script>
   const mazeContainer = document.getElementById("maze");
+  const defaultDoorSound = "https://files.daarfi.me/hl-door-sound.mp3";
 
   const directions = [
     [1, 0],
@@ -280,6 +281,7 @@
 
     createDoor(cell, wallIndex) {
       const door = document.createElement("m-cube");
+      const doorId = `${cell.row}:${cell.column}:${wallIndex}`;
 
       const width = wallIndex % 2 === 0 ? Cell.cellSize + Cell.wallWidth / 2 : Cell.wallWidth;
       const depth = wallIndex % 2 !== 0 ? Cell.cellSize + Cell.wallDepth / 2 : Cell.wallDepth;
@@ -288,6 +290,7 @@
       const x = cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
       const z = cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
 
+      door.setAttribute("id", doorId);
       door.setAttribute("width", width);
       door.setAttribute("height", Cell.wallHeight + 0.001);
       door.setAttribute("depth", depth);
@@ -313,19 +316,39 @@
       );
 
       label.setAttribute("onclick", `openDoor(this.parentNode)`);
-
       door.appendChild(label);
-      mazeContainer.appendChild(door);
 
-      this.doors[wallIndex] = door;
+      // Create sound tag
+      const audio = document.createElement('m-audio');
+      audio.setAttribute('src', defaultDoorSound);
+      audio.setAttribute('volume', '0.5');
+      audio.setAttribute('autoplay', 'false');
+      audio.setAttribute('loop', 'false');
+      audio.setAttribute('enabled', 'false');
+      audio.setAttribute('debug', 'true');
+
+      door.appendChild(audio);
+      mazeContainer.appendChild(door);
+      this.doors[doorId] = {
+        door,
+        label,
+        audio,
+      };
     }
 
+
+    // TODO: prevent multiple clicks
     openDoor(door) {
       const y = door.getAttribute("y");
+      const doorAudio = this.doors[door.getAttribute("id")].audio;
+      doorAudio.setAttribute('enabled', 'true');
+      doorAudio.setAttribute('start-time', document.timeline.currentTime);
+
       const interval = setInterval(() => {
         const newY = parseFloat(door.getAttribute("y")) - 0.1;
         door.setAttribute("y", newY);
         if (newY <= -Cell.wallHeight) {
+          doorAudio.setAttribute('enabled', 'false');
           clearInterval(interval);
           setTimeout(() => this.closeDoor(door), 1000);
         }
@@ -333,7 +356,10 @@
     }
 
     closeDoor(door) {
-      const y = Cell.wallHeight / 2 + 0.001;
+      const y = Cell.wallHeight / 2 + 0.0001;
+      const doorAudio = this.doors[door.getAttribute("id")].audio;
+      doorAudio.setAttribute('enabled', 'true');
+      doorAudio.setAttribute('start-time', document.timeline.currentTime);
       const interval = setInterval(() => {
         const newY = parseFloat(door.getAttribute("y")) + 0.1;
         door.setAttribute("y", newY);
