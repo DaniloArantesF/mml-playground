@@ -102,24 +102,24 @@
       if (this.state.animationInterval) {
         clearInterval(this.state.animationInterval);
         this.state.animationInterval = null;
+        this.audio.setAttribute("enabled", "false");
+        // this.audio.setAttribute("pause-time", "0");
       }
     }
 
     openDoor() {
       const y = this.doorElement.getAttribute("y");
+      this.clearAnimationInterval();
       const doorAudio = this.audio;
       doorAudio.setAttribute("enabled", "true");
       doorAudio.setAttribute("start-time", document.timeline.currentTime);
 
-      this.clearAnimationInterval();
 
       this.state.animationInterval = setInterval(() => {
         const newY = parseFloat(this.doorElement.getAttribute("y")) - 0.2;
         this.doorElement.setAttribute("y", newY);
         if (newY <= -Cell.wallHeight) {
-          doorAudio.setAttribute("enabled", "false");
-          clearInterval(this.state.animationInterval);
-          this.state.animationInterval = null;
+          this.clearAnimationInterval();
         }
       }, 100);
     }
@@ -127,17 +127,16 @@
     closeDoor() {
       const y = Cell.wallHeight / 2;// + 0.0001;
       const doorAudio = this.audio;
+      this.clearAnimationInterval();
       doorAudio.setAttribute("enabled", "true");
       doorAudio.setAttribute("start-time", document.timeline.currentTime);
 
-      this.clearAnimationInterval();
 
       this.state.animationInterval = setInterval(() => {
         const newY = parseFloat(this.doorElement.getAttribute("y")) + 0.2;
         this.doorElement.setAttribute("y", newY);
         if (newY >= y) {
-          clearInterval(this.state.animationInterval);
-          this.state.animationInterval = null;
+          this.clearAnimationInterval();
         }
       }, 100);
     }
@@ -225,6 +224,7 @@
     constructor() {
       this.gridSize = 10;
       this.grid = [];
+      this.playerCount = 0;
       this.createGrid();
       this.createPositionProbe();
 
@@ -257,6 +257,12 @@
       console.log("Call to spawnMaze took " + (t1 - t0) + " milliseconds.");
       this.metadata.spawnMazePerformance = t1 - t0;
 
+      // maps player connection id to boolean indicating if player is inside maze
+      this.players = {}
+      this.playerCount = 0;
+
+      this.watchPlayers();
+      this.jumbotron = new Jumbotron(this);
       this.createInfoLabel();
     }
 
@@ -419,20 +425,129 @@
 
     createPositionProbe() {
       this.probe = document.createElement("m-position-probe");
-
+      const {x, z } = this.getMazeCenter();
       this.probe.setAttribute("id", "maze-position-probe");
-      this.probe.setAttribute("x", (this.gridSize * Cell.cellSize) / 2);
+      this.probe.setAttribute("x", x);
       this.probe.setAttribute("y", 0);
-      this.probe.setAttribute("z", (this.gridSize * Cell.cellSize) / 2);
+      this.probe.setAttribute("z", z);
       this.probe.setAttribute("range", this.getMazeRadius());
       this.probe.setAttribute("interval", "1000");
       this.probe.setAttribute("debug", "true");
-
       mazeContainer.appendChild(this.probe);
     }
 
     getMazeRadius() {
       return this.grid.length * Cell.cellSize;
+    }
+
+    getMazeCenter() {
+      return {
+        x: this.getMazeRadius() / 2,
+        y: 0,
+        z: this.getMazeRadius() / 2,
+      }
+    }
+
+    watchPlayers() {
+      this.probe.addEventListener("positionmove", (event) => {
+        const { connectionId, elementRelative, documentRelative } = event.detail;
+        const prevPlayerCount = this.playerCount;
+        const isPlayerInside = this.checkBounds(documentRelative.position.x, documentRelative.position.z);
+        if (connectionId in this.players) {
+          const prevValue = this.players[connectionId];
+          if (prevValue !== isPlayerInside) {
+            this.players[connectionId] = isPlayerInside;
+            if (isPlayerInside) {
+              this.playerCount++;
+            } else {
+              this.playerCount--;
+            }
+          }
+        } else {
+          this.players[connectionId] = isPlayerInside;
+          if (isPlayerInside) {
+            this.playerCount++;
+          }
+        }
+
+        this.playerCount !== prevPlayerCount && this.jumbotron.updateLabels();
+      })
+    }
+
+    checkBounds(x, z) {
+      const lowerBound = 0;
+      // note: this assumes that the maze is a square
+      const upperBound = this.grid[this.grid.length - 1][this.grid.length - 1].position.x + Cell.cellSize / 2;
+      if (x < lowerBound || x >= upperBound || z < lowerBound || z >= upperBound) {
+        return false;
+      } else {
+        return true;
+      }
+    }
+  }
+
+
+  class Jumbotron {
+    constructor(maze) {
+      this.maze = maze;
+      this.positionProbe = maze.probe;
+
+      this.width = 10;
+      this.height = 5;
+      this.depth = 10;
+
+      this.jumbotron = document.createElement("m-cube");
+      this.jumbotron.setAttribute("id", "maze-jumbotron");
+      this.jumbotron.setAttribute("width", `${this.width}`);
+      this.jumbotron.setAttribute("height", `${this.height}`);
+      this.jumbotron.setAttribute("depth", `${this.depth}`);
+      this.jumbotron.setAttribute("color", "#0000ff");
+
+      this.jumbotron.setAttribute("x", this.positionProbe.getAttribute("x"));
+      this.jumbotron.setAttribute("y", 15);
+      this.jumbotron.setAttribute("z", this.positionProbe.getAttribute("z"));
+
+      mazeContainer.appendChild(this.jumbotron);
+
+      this.labels = [];
+      this.createLabel();
+    }
+
+    createLabel() {
+      const offset = 0.01;
+      const sides = [[this.width/2 + offset, 0], [0, this.depth/2+ offset], [-this.width/2- offset, 0], [0, -this.depth/2 - offset]];
+      const bezel = .1;
+      const labels = [];
+      for (let i = 0; i < sides.length; i++) {
+        const [x, z] = sides[i];
+
+        const label = document.createElement("m-label");
+        label.setAttribute("id", `jumbotron-label-${i}`);
+        label.setAttribute("x", x);
+        label.setAttribute("y", bezel / 2);
+        label.setAttribute("z", z);
+        label.setAttribute("content", "");
+        label.setAttribute("width", this.width - bezel);
+        label.setAttribute("height", this.height - bezel);
+        label.setAttribute("rx", "0");
+
+        label.setAttribute("ry", -90 + i * 90 + (i % 2 === 0 ? 180 : 0));
+        label.setAttribute("font-size", "64");
+        label.setAttribute("alignment", "center");
+
+        this.jumbotron.appendChild(label);
+        labels.push(label);
+      }
+
+      this.labels = labels;
+      this.updateLabels();
+    }
+
+    updateLabels() {
+      const content = `Players: ${this.maze.playerCount}\nTime Remaining: ${-1}`;
+      for (let i = 0; i < this.labels.length; i++) {
+        this.labels[i].setAttribute("content", content);
+      }
     }
   }
 
