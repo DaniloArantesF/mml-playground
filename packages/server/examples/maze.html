@@ -1,5 +1,4 @@
-<m-group id="maze">
-</m-group>
+<m-group id="maze"> </m-group>
 
 <script>
   const mazeContainer = document.getElementById("maze");
@@ -11,6 +10,138 @@
     [-1, 0],
     [0, 1],
   ];
+
+  class Door {
+    constructor(cell, wallIndex) {
+      this.doorElement = document.createElement("m-cube");
+      this.id = `${cell.row}:${cell.column}:${wallIndex}`;
+
+      const width = wallIndex % 2 === 0 ? Cell.cellSize + Cell.wallWidth / 2 : Cell.wallWidth;
+      const depth = wallIndex % 2 !== 0 ? Cell.cellSize + Cell.wallDepth / 2 : Cell.wallDepth;
+
+      const offset = directions[wallIndex];
+      const x = cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
+      const z = cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
+
+      this.doorElement.setAttribute("id", this.id);
+      this.doorElement.setAttribute("width", width);
+      this.doorElement.setAttribute("height", Cell.wallHeight + 0.001);
+      this.doorElement.setAttribute("depth", depth);
+
+      this.doorElement.setAttribute("x", x);
+      this.doorElement.setAttribute("y", cell.position.y + Cell.wallHeight / 2);
+      this.doorElement.setAttribute("z", z);
+
+      this.doorElement.setAttribute("color", "#000000");
+
+      // open label
+      // const label = document.createElement("m-label");
+      // label.setAttribute("x", offset[1] * 0.5);
+      // label.setAttribute("y", 0.5);
+      // label.setAttribute("z", offset[0] * 0.5);
+      // label.setAttribute("content", "Open");
+      // label.setAttribute("width", "1");
+      // label.setAttribute("height", ".5");
+      // label.setAttribute("rx", "0");
+      // label.setAttribute(
+      //   "ry",
+      //   `${wallIndex % 2 === 0 ? (wallIndex === 0 ? 0 : 1) * 180 : offset[1] * 90}`,
+      // );
+
+      // label.setAttribute("onclick", `openDoor("${this.id}")`);
+      // this.doorElement.appendChild(label);
+
+      // Create sound tag
+      this.audio = document.createElement("m-audio");
+      this.audio.setAttribute("src", defaultDoorSound);
+      this.audio.setAttribute("volume", "0.5");
+      this.audio.setAttribute("autoplay", "false");
+      this.audio.setAttribute("loop", "false");
+      this.audio.setAttribute("enabled", "false");
+      this.audio.setAttribute("debug", "true");
+
+      this.doorElement.appendChild(this.audio);
+      mazeContainer.appendChild(this.doorElement);
+
+      // const positionProbe = document.getElementById('maze-position-probe');
+      // console.log(`Door position:  x: ${x} | z: ${z}`);
+      // positionProbe.addEventListener('positionmove', (event) => {
+      //   console.log(event.detail.documentRelative);
+      // });
+
+      this.setupPositionProbe();
+
+      this.state = {
+        animationInterval: null,
+      }
+    }
+
+    setupPositionProbe() {
+      // Create position probe
+      this.probe = document.createElement("m-position-probe");
+      this.probe.setAttribute("id", `${this.id}-probe`);
+      this.probe.setAttribute("x", this.doorElement.getAttribute("x"));
+      this.probe.setAttribute("y", this.doorElement.getAttribute("y"));
+      this.probe.setAttribute("z", this.doorElement.getAttribute("z"));
+      this.probe.setAttribute("range", Cell.cellSize);
+      this.probe.setAttribute("interval", "200");
+      this.probe.setAttribute("debug", "true");
+      this.doorElement.parentNode.appendChild(this.probe);
+
+      // Handle events
+      this.probe.addEventListener("positionenter", (event) => {
+        this.openDoor();
+      });
+
+      this.probe.addEventListener("positionleave", (event) => {
+        this.closeDoor();
+      });
+    }
+
+    clearAnimationInterval() {
+      if (this.state.animationInterval) {
+        clearInterval(this.state.animationInterval);
+        this.state.animationInterval = null;
+      }
+    }
+
+    openDoor() {
+      const y = this.doorElement.getAttribute("y");
+      const doorAudio = this.audio;
+      doorAudio.setAttribute("enabled", "true");
+      doorAudio.setAttribute("start-time", document.timeline.currentTime);
+
+      this.clearAnimationInterval();
+
+      this.state.animationInterval = setInterval(() => {
+        const newY = parseFloat(this.doorElement.getAttribute("y")) - 0.2;
+        this.doorElement.setAttribute("y", newY);
+        if (newY <= -Cell.wallHeight) {
+          doorAudio.setAttribute("enabled", "false");
+          clearInterval(this.state.animationInterval);
+          this.state.animationInterval = null;
+        }
+      }, 100);
+    }
+
+    closeDoor() {
+      const y = Cell.wallHeight / 2;// + 0.0001;
+      const doorAudio = this.audio;
+      doorAudio.setAttribute("enabled", "true");
+      doorAudio.setAttribute("start-time", document.timeline.currentTime);
+
+      this.clearAnimationInterval();
+
+      this.state.animationInterval = setInterval(() => {
+        const newY = parseFloat(this.doorElement.getAttribute("y")) + 0.2;
+        this.doorElement.setAttribute("y", newY);
+        if (newY >= y) {
+          clearInterval(this.state.animationInterval);
+          this.state.animationInterval = null;
+        }
+      }, 100);
+    }
+  }
 
   class Cell {
     static cellSize = 3;
@@ -24,6 +155,7 @@
       this.walls = [true, true, true, true];
       this.visited = false;
       this.position = Cell.getPosition(row, column);
+      this.doors = {};
     }
 
     // returns the position of the center of the cell in the world
@@ -81,6 +213,12 @@
       label.setAttribute("rx", "-90");
       mazeContainer.appendChild(label);
     }
+
+    createDoor(wallIndex) {
+      this.walls[wallIndex] = false;
+      const door = new Door(this, wallIndex);
+      this.doors[door.id] = door;
+    }
   }
 
   class Maze {
@@ -88,17 +226,17 @@
       this.gridSize = 10;
       this.grid = [];
       this.createGrid();
-      this.currentCell = this.grid[0][0];
+      this.createPositionProbe();
 
-      this.doors = {};
+      this.currentCell = this.grid[0][0];
 
       // Create Entrance
       this.currentCell.walls[1] = false;
-      this.createDoor(this.currentCell, 1);
+      this.currentCell.createDoor(1);
 
       // Create Exit
       this.grid[this.gridSize - 1][this.gridSize - 1].walls[0] = false;
-      this.createDoor(this.grid[this.gridSize - 1][this.gridSize - 1], 0);
+      this.grid[this.gridSize - 1][this.gridSize - 1].createDoor(0);
 
       this.metadata = {
         creator: "@daarfi",
@@ -266,7 +404,7 @@
         }\n\nPerformance Stats:\nMaze Creation: ${this.metadata.createMazePerformance.toFixed(
           2,
         )} ms\nSpawn Maze: ${this.metadata.spawnMazePerformance.toFixed(2)} ms
-      `,
+        `,
       );
       label.setAttribute("width", "3");
       label.setAttribute("height", "2");
@@ -279,100 +417,29 @@
       mazeContainer.appendChild(label);
     }
 
-    createDoor(cell, wallIndex) {
-      const door = document.createElement("m-cube");
-      const doorId = `${cell.row}:${cell.column}:${wallIndex}`;
+    createPositionProbe() {
+      this.probe = document.createElement("m-position-probe");
 
-      const width = wallIndex % 2 === 0 ? Cell.cellSize + Cell.wallWidth / 2 : Cell.wallWidth;
-      const depth = wallIndex % 2 !== 0 ? Cell.cellSize + Cell.wallDepth / 2 : Cell.wallDepth;
+      this.probe.setAttribute("id", "maze-position-probe");
+      this.probe.setAttribute("x", (this.gridSize * Cell.cellSize) / 2);
+      this.probe.setAttribute("y", 0);
+      this.probe.setAttribute("z", (this.gridSize * Cell.cellSize) / 2);
+      this.probe.setAttribute("range", this.getMazeRadius());
+      this.probe.setAttribute("interval", "1000");
+      this.probe.setAttribute("debug", "true");
 
-      const offset = directions[wallIndex];
-      const x = cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
-      const z = cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
-
-      door.setAttribute("id", doorId);
-      door.setAttribute("width", width);
-      door.setAttribute("height", Cell.wallHeight + 0.001);
-      door.setAttribute("depth", depth);
-
-      door.setAttribute("x", x);
-      door.setAttribute("y", cell.position.y + Cell.wallHeight / 2);
-      door.setAttribute("z", z);
-
-      door.setAttribute("color", "#000000");
-
-      // open label
-      const label = document.createElement("m-label");
-      label.setAttribute("x", offset[1] * 0.5);
-      label.setAttribute("y", 0.5);
-      label.setAttribute("z", offset[0] * 0.5);
-      label.setAttribute("content", "Open");
-      label.setAttribute("width", "1");
-      label.setAttribute("height", ".5");
-      label.setAttribute("rx", "0");
-      label.setAttribute(
-        "ry",
-        `${wallIndex % 2 === 0 ? (wallIndex === 0 ? 0 : 1) * 180 : offset[1] * 90}`,
-      );
-
-      label.setAttribute("onclick", `openDoor(this.parentNode)`);
-      door.appendChild(label);
-
-      // Create sound tag
-      const audio = document.createElement('m-audio');
-      audio.setAttribute('src', defaultDoorSound);
-      audio.setAttribute('volume', '0.5');
-      audio.setAttribute('autoplay', 'false');
-      audio.setAttribute('loop', 'false');
-      audio.setAttribute('enabled', 'false');
-      audio.setAttribute('debug', 'true');
-
-      door.appendChild(audio);
-      mazeContainer.appendChild(door);
-      this.doors[doorId] = {
-        door,
-        label,
-        audio,
-      };
+      mazeContainer.appendChild(this.probe);
     }
 
-
-    // TODO: prevent multiple clicks
-    openDoor(door) {
-      const y = door.getAttribute("y");
-      const doorAudio = this.doors[door.getAttribute("id")].audio;
-      doorAudio.setAttribute('enabled', 'true');
-      doorAudio.setAttribute('start-time', document.timeline.currentTime);
-
-      const interval = setInterval(() => {
-        const newY = parseFloat(door.getAttribute("y")) - 0.1;
-        door.setAttribute("y", newY);
-        if (newY <= -Cell.wallHeight) {
-          doorAudio.setAttribute('enabled', 'false');
-          clearInterval(interval);
-          setTimeout(() => this.closeDoor(door), 1000);
-        }
-      }, 100);
-    }
-
-    closeDoor(door) {
-      const y = Cell.wallHeight / 2 + 0.0001;
-      const doorAudio = this.doors[door.getAttribute("id")].audio;
-      doorAudio.setAttribute('enabled', 'true');
-      doorAudio.setAttribute('start-time', document.timeline.currentTime);
-      const interval = setInterval(() => {
-        const newY = parseFloat(door.getAttribute("y")) + 0.1;
-        door.setAttribute("y", newY);
-        if (newY >= y) {
-          clearInterval(interval);
-        }
-      }, 100);
+    getMazeRadius() {
+      return this.grid.length * Cell.cellSize;
     }
   }
 
   const maze = new Maze();
 
-  function openDoor(door) {
-    maze.openDoor(door);
+  function openDoor(doorId) {
+    const [row, column, wallIndex] = doorId.split(":").map((x) => parseInt(x));
+    maze.grid[row][column].doors[doorId].openDoor();
   }
 </script>

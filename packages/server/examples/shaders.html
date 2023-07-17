@@ -1,5 +1,5 @@
 <m-plane color="blue" width="20" height="20" rx="-90"></m-plane>
-<!-- <m-light type="spotlight" ry="45" rx="65" rz="-45" x="10" y="10" z="10"></m-light> -->
+<m-light type="spotlight" ry="0" rx="45" rz="0" x="1" y="10" z="8"></m-light>
 
 <m-group sx="0.4" sy="0.4" ry="0" y="3">
   <m-audio
@@ -115,7 +115,7 @@
       float ratio = 0.2;
       float ratioDiff = 1.0 - ratio;
       float invRatioDiff = 1.0 / ratioDiff;
-      vec2 uv = vUv;
+      //vec2 uv = vUv;
       float uvy = (uv.y / ratioDiff) - ratio * invRatioDiff;
       vec4 prgm3 = texture2D(prgm3Texture, vec2(uv.x, uvy));
       gl_FragColor = prgm3;
@@ -372,7 +372,6 @@
       uniform sampler2D prgm2Texture;
 
       void main() {
-        vec2 uv = vUv;
         vec4 prgm1 = texture2D(prgm1Texture, uv);
         vec4 prgm2 = texture2D(prgm2Texture, uv);
         vec3 color = prgm2.xyz;
