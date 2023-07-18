@@ -16,23 +16,14 @@
       this.cell = cell;
       this.wallIndex = wallIndex;
       this.id = `${cell.row}:${cell.column}:${wallIndex}`;
-      this.createTexturedDoor();
-      // open label
-      // const label = document.createElement("m-label");
-      // label.setAttribute("x", offset[1] * 0.5);
-      // label.setAttribute("y", 0.5);
-      // label.setAttribute("z", offset[0] * 0.5);
-      // label.setAttribute("content", "Open");
-      // label.setAttribute("width", "1");
-      // label.setAttribute("height", ".5");
-      // label.setAttribute("rx", "0");
-      // label.setAttribute(
-      //   "ry",
-      //   `${wallIndex % 2 === 0 ? (wallIndex === 0 ? 0 : 1) * 180 : offset[1] * 90}`,
-      // );
 
-      // label.setAttribute("onclick", `openDoor("${this.id}")`);
-      // this.doorElement.appendChild(label);
+      this.texturedAssetMetadata = {
+        width: 3,
+        height: 4,
+        depth: 1,
+      };
+
+      this.createTexturedDoor();
 
       // Create sound tag
       this.audio = document.createElement("m-audio");
@@ -45,7 +36,6 @@
 
       this.doorElement.appendChild(this.audio);
       mazeContainer.appendChild(this.doorElement);
-
 
       this.setupPositionProbe();
       this.state = {
@@ -68,7 +58,7 @@
       this.doorElement.setAttribute("height", Cell.wallHeight + 0.001);
       this.doorElement.setAttribute("depth", depth);
 
-      this.y = this.cell.position.y + Cell.wallHeight / 2
+      this.y = this.cell.position.y + Cell.wallHeight / 2;
       this.doorElement.setAttribute("x", x);
       this.doorElement.setAttribute("y", this.y);
       this.doorElement.setAttribute("z", z);
@@ -82,20 +72,22 @@
       this.doorElement.setAttribute("id", this.id);
       this.doorElement.setAttribute("src", "https://files.daarfi.me/door.glb");
 
-
       const offset = directions[this.wallIndex];
       const x = this.cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
       const z = this.cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
 
-      this.y = 0
+      this.y = 0;
       this.doorHeight = 4;
       this.doorElement.setAttribute("x", x);
       this.doorElement.setAttribute("y", this.y);
       this.doorElement.setAttribute("z", z);
 
+      // Scale width and height to match Cell and wall dimensions
+      this.doorElement.setAttribute("sx", Cell.cellSize / this.texturedAssetMetadata.width);
+      this.doorElement.setAttribute("sy", Cell.wallHeight / this.texturedAssetMetadata.height);
+
       this.doorElement.setAttribute("ry", this.wallIndex * 90);
     }
-
 
     setupPositionProbe() {
       // Create position probe
@@ -165,7 +157,7 @@
     static cellSize = 3;
     static wallWidth = 0.5;
     static wallDepth = 0.5;
-    static wallHeight = 3;
+    static wallHeight = 4;
 
     constructor(row, column) {
       this.row = row;
@@ -173,6 +165,13 @@
       this.walls = [true, true, true, true];
       this.visited = false;
       this.position = Cell.getPosition(row, column);
+
+      this.texturedAssetMetadata = {
+        width: 2,
+        depth: 0.5,
+        height: 3,
+      };
+
       this.doors = {};
     }
 
@@ -230,20 +229,18 @@
 
     createTexturedWall(i) {
       const wall = document.createElement("m-model");
-      wall.setAttribute(
-        "src",
-        "https://files.daarfi.me/cobblestone-wall.glb",
-      );
+      wall.setAttribute("src", "https://files.daarfi.me/cobblestone-wall.glb");
 
-      const xOffset = i < 2 ? Math.random() * .01 : Math.random() * -.01;
-      const zOffset = i < 2 ? Math.random() * -.01 : Math.random() * .01;
-      const yOffset = Math.random() * .01;
+      const xOffset = i < 2 ? Math.random() * 0.01 : Math.random() * -0.01;
+      const zOffset = i < 2 ? Math.random() * -0.01 : Math.random() * 0.01;
+      const yOffset = Math.random() * 0.01;
 
       wall.setAttribute(
         "x",
         this.position.x +
           (directions[i][1] * Cell.cellSize) / 2 +
-          (directions[i][1] * Cell.wallWidth) / 2 + xOffset,
+          (directions[i][1] * Cell.wallWidth) / 2 +
+          xOffset,
       );
 
       wall.setAttribute("y", yOffset);
@@ -252,14 +249,15 @@
         "z",
         this.position.z +
           (directions[i][0] * Cell.cellSize) / 2 +
-          (directions[i][0] * Cell.wallDepth) / 2 + zOffset,
+          (directions[i][0] * Cell.wallDepth) / 2 +
+          zOffset,
       );
 
-      wall.setAttribute("ry", i * 90)
+      wall.setAttribute("ry", i * 90);
 
       wall.setAttribute(
         "sx",
-        2,
+        (Cell.cellSize + 2 * Cell.wallDepth) / this.texturedAssetMetadata.width,
       );
 
       wall.setAttribute("sy", 2);
@@ -268,25 +266,16 @@
 
     createTexturedGround() {
       const ground = document.createElement("m-model");
-      ground.setAttribute(
-        "src",
-        "https://files.daarfi.me/cobblestone-ground.glb",
-      );
+      ground.setAttribute("src", "https://files.daarfi.me/cobblestone-ground.glb");
 
-      ground.setAttribute(
-        "x",
-        this.position.x,
-      );
-      ground.setAttribute("y", Math.random() * .01);
-      ground.setAttribute(
-        "z",
-        this.position.z,
-      );
+      ground.setAttribute("x", this.position.x);
+      ground.setAttribute("y", Math.random() * 0.01);
+      ground.setAttribute("z", this.position.z);
 
-      const groundSide = 1.6;
+      const groundSide = 2;
       // scale ground to fit cell size
-      ground.setAttribute("sx", Cell.cellSize / groundSide);
-      ground.setAttribute("sz", Cell.cellSize / groundSide);
+      ground.setAttribute("sx", (Cell.cellSize + 2 * Cell.wallDepth) / groundSide);
+      ground.setAttribute("sz", (Cell.cellSize + 2 * Cell.wallDepth) / groundSide);
       return ground;
     }
 
