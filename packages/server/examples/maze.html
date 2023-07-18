@@ -2,7 +2,7 @@
 
 <script>
   const mazeContainer = document.getElementById("maze");
-  const defaultDoorSound = "https://files.daarfi.me/hl-door-sound.mp3";
+  const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
 
   const directions = [
     [1, 0],
@@ -13,27 +13,10 @@
 
   class Door {
     constructor(cell, wallIndex) {
-      this.doorElement = document.createElement("m-cube");
+      this.cell = cell;
+      this.wallIndex = wallIndex;
       this.id = `${cell.row}:${cell.column}:${wallIndex}`;
-
-      const width = wallIndex % 2 === 0 ? Cell.cellSize + Cell.wallWidth / 2 : Cell.wallWidth;
-      const depth = wallIndex % 2 !== 0 ? Cell.cellSize + Cell.wallDepth / 2 : Cell.wallDepth;
-
-      const offset = directions[wallIndex];
-      const x = cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
-      const z = cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
-
-      this.doorElement.setAttribute("id", this.id);
-      this.doorElement.setAttribute("width", width);
-      this.doorElement.setAttribute("height", Cell.wallHeight + 0.001);
-      this.doorElement.setAttribute("depth", depth);
-
-      this.doorElement.setAttribute("x", x);
-      this.doorElement.setAttribute("y", cell.position.y + Cell.wallHeight / 2);
-      this.doorElement.setAttribute("z", z);
-
-      this.doorElement.setAttribute("color", "#000000");
-
+      this.createTexturedDoor();
       // open label
       // const label = document.createElement("m-label");
       // label.setAttribute("x", offset[1] * 0.5);
@@ -54,27 +37,65 @@
       // Create sound tag
       this.audio = document.createElement("m-audio");
       this.audio.setAttribute("src", defaultDoorSound);
-      this.audio.setAttribute("volume", "0.5");
+      this.audio.setAttribute("volume", "0.75");
       this.audio.setAttribute("autoplay", "false");
       this.audio.setAttribute("loop", "false");
       this.audio.setAttribute("enabled", "false");
-      this.audio.setAttribute("debug", "true");
+      this.audio.setAttribute("debug", "false");
 
       this.doorElement.appendChild(this.audio);
       mazeContainer.appendChild(this.doorElement);
 
-      // const positionProbe = document.getElementById('maze-position-probe');
-      // console.log(`Door position:  x: ${x} | z: ${z}`);
-      // positionProbe.addEventListener('positionmove', (event) => {
-      //   console.log(event.detail.documentRelative);
-      // });
 
       this.setupPositionProbe();
-
       this.state = {
         animationInterval: null,
       };
     }
+
+    createCubeDoor() {
+      this.doorElement = document.createElement("m-cube");
+
+      const width = this.wallIndex % 2 === 0 ? Cell.cellSize + Cell.wallWidth / 2 : Cell.wallWidth;
+      const depth = this.wallIndex % 2 !== 0 ? Cell.cellSize + Cell.wallDepth / 2 : Cell.wallDepth;
+
+      const offset = directions[this.wallIndex];
+      const x = this.cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
+      const z = this.cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
+
+      this.doorElement.setAttribute("id", this.id);
+      this.doorElement.setAttribute("width", width);
+      this.doorElement.setAttribute("height", Cell.wallHeight + 0.001);
+      this.doorElement.setAttribute("depth", depth);
+
+      this.y = this.cell.position.y + Cell.wallHeight / 2
+      this.doorElement.setAttribute("x", x);
+      this.doorElement.setAttribute("y", this.y);
+      this.doorElement.setAttribute("z", z);
+
+      this.doorHeight = Cell.wallHeight;
+      this.doorElement.setAttribute("color", "#000000");
+    }
+
+    createTexturedDoor() {
+      this.doorElement = document.createElement("m-model");
+      this.doorElement.setAttribute("id", this.id);
+      this.doorElement.setAttribute("src", "https://files.daarfi.me/door.glb");
+
+
+      const offset = directions[this.wallIndex];
+      const x = this.cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
+      const z = this.cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
+
+      this.y = 0
+      this.doorHeight = 4;
+      this.doorElement.setAttribute("x", x);
+      this.doorElement.setAttribute("y", this.y);
+      this.doorElement.setAttribute("z", z);
+
+      this.doorElement.setAttribute("ry", this.wallIndex * 90);
+    }
+
 
     setupPositionProbe() {
       // Create position probe
@@ -85,7 +106,7 @@
       this.probe.setAttribute("z", this.doorElement.getAttribute("z"));
       this.probe.setAttribute("range", Cell.cellSize);
       this.probe.setAttribute("interval", "200");
-      this.probe.setAttribute("debug", "true");
+      this.probe.setAttribute("debug", "false");
       this.doorElement.parentNode.appendChild(this.probe);
 
       // Handle events
@@ -108,7 +129,7 @@
     }
 
     openDoor() {
-      const y = this.doorElement.getAttribute("y");
+      const y = this.y;
       this.clearAnimationInterval();
       const doorAudio = this.audio;
       doorAudio.setAttribute("enabled", "true");
@@ -117,14 +138,14 @@
       this.state.animationInterval = setInterval(() => {
         const newY = parseFloat(this.doorElement.getAttribute("y")) - 0.2;
         this.doorElement.setAttribute("y", newY);
-        if (newY <= -Cell.wallHeight) {
+        if (newY <= -1 * this.doorHeight) {
           this.clearAnimationInterval();
         }
       }, 100);
     }
 
     closeDoor() {
-      const y = Cell.wallHeight / 2; // + 0.0001;
+      const y = this.y;
       const doorAudio = this.audio;
       this.clearAnimationInterval();
       doorAudio.setAttribute("enabled", "true");
@@ -169,6 +190,8 @@
       for (let i = 0; i < 4; i++) {
         if (this.walls[i]) {
           const wall = this.createTexturedWall(i);
+          const ground = this.createTexturedGround();
+          mazeContainer.appendChild(ground);
           mazeContainer.appendChild(wall);
         }
       }
@@ -206,22 +229,14 @@
     }
 
     createTexturedWall(i) {
-      // const brickCount = (Cell.cellSize * Math.max(Cell.wallWidth, Cell.wallDepth)) / 0.5;
-
       const wall = document.createElement("m-model");
       wall.setAttribute(
         "src",
         "https://files.daarfi.me/cobblestone-wall.glb",
       );
 
-      // const xOffset = directions[i][1] === 0 ? 0 : Math.random() * -.01;
-      // const zOffset = directions[i][0] === 0 ? 0 : Math.random() * -.01;
-
       const xOffset = i < 2 ? Math.random() * .01 : Math.random() * -.01;
       const zOffset = i < 2 ? Math.random() * -.01 : Math.random() * .01;
-
-
-
       const yOffset = Math.random() * .01;
 
       wall.setAttribute(
@@ -247,10 +262,32 @@
         2,
       );
 
-      wall.setAttribute("sy", 1.5);
-      // wall.setAttribute("sz", directions[i][0] === 0 ? 1.5 : 1);
-
+      wall.setAttribute("sy", 2);
       return wall;
+    }
+
+    createTexturedGround() {
+      const ground = document.createElement("m-model");
+      ground.setAttribute(
+        "src",
+        "https://files.daarfi.me/cobblestone-ground.glb",
+      );
+
+      ground.setAttribute(
+        "x",
+        this.position.x,
+      );
+      ground.setAttribute("y", Math.random() * .01);
+      ground.setAttribute(
+        "z",
+        this.position.z,
+      );
+
+      const groundSide = 1.6;
+      // scale ground to fit cell size
+      ground.setAttribute("sx", Cell.cellSize / groundSide);
+      ground.setAttribute("sz", Cell.cellSize / groundSide);
+      return ground;
     }
 
     spawnCellLabel() {
@@ -483,7 +520,7 @@
       this.probe.setAttribute("z", z);
       this.probe.setAttribute("range", this.getMazeRadius());
       this.probe.setAttribute("interval", "1000");
-      this.probe.setAttribute("debug", "true");
+      this.probe.setAttribute("debug", "false");
       mazeContainer.appendChild(this.probe);
     }
 
@@ -546,10 +583,18 @@
       this.maze = maze;
       this.positionProbe = maze.probe;
 
-      this.width = 10;
-      this.height = 5;
-      this.depth = 10;
+      this.width = 12;
+      this.height = 6;
+      this.depth = 12;
 
+      this.createTexturedJumbo();
+      mazeContainer.appendChild(this.jumbotron);
+
+      this.labels = [];
+      this.createLabel();
+    }
+
+    createCubeJumbo() {
       this.jumbotron = document.createElement("m-cube");
       this.jumbotron.setAttribute("id", "maze-jumbotron");
       this.jumbotron.setAttribute("width", `${this.width}`);
@@ -561,10 +606,19 @@
       this.jumbotron.setAttribute("y", 15);
       this.jumbotron.setAttribute("z", this.positionProbe.getAttribute("z"));
 
-      mazeContainer.appendChild(this.jumbotron);
+      this.labelOffset = 0;
+    }
 
-      this.labels = [];
-      this.createLabel();
+    createTexturedJumbo() {
+      this.jumbotron = document.createElement("m-model");
+      this.jumbotron.setAttribute("id", "maze-jumbotron");
+      this.jumbotron.setAttribute("src", "https://files.daarfi.me/jumbo.glb");
+
+      this.jumbotron.setAttribute("x", this.positionProbe.getAttribute("x"));
+      this.jumbotron.setAttribute("y", 15);
+      this.jumbotron.setAttribute("z", this.positionProbe.getAttribute("z"));
+
+      this.labelOffset = 2;
     }
 
     createLabel() {
@@ -575,7 +629,7 @@
         [-this.width / 2 - offset, 0],
         [0, -this.depth / 2 - offset],
       ];
-      const bezel = 0.1;
+      const bezel = 2;
       const labels = [];
       for (let i = 0; i < sides.length; i++) {
         const [x, z] = sides[i];
@@ -583,7 +637,7 @@
         const label = document.createElement("m-label");
         label.setAttribute("id", `jumbotron-label-${i}`);
         label.setAttribute("x", x);
-        label.setAttribute("y", bezel / 2);
+        label.setAttribute("y", this.labelOffset + bezel / 2);
         label.setAttribute("z", z);
         label.setAttribute("content", "");
         label.setAttribute("width", this.width - bezel);
