@@ -73,7 +73,7 @@
 
       this.state = {
         animationInterval: null,
-      }
+      };
     }
 
     setupPositionProbe() {
@@ -114,7 +114,6 @@
       doorAudio.setAttribute("enabled", "true");
       doorAudio.setAttribute("start-time", document.timeline.currentTime);
 
-
       this.state.animationInterval = setInterval(() => {
         const newY = parseFloat(this.doorElement.getAttribute("y")) - 0.2;
         this.doorElement.setAttribute("y", newY);
@@ -125,12 +124,11 @@
     }
 
     closeDoor() {
-      const y = Cell.wallHeight / 2;// + 0.0001;
+      const y = Cell.wallHeight / 2; // + 0.0001;
       const doorAudio = this.audio;
       this.clearAnimationInterval();
       doorAudio.setAttribute("enabled", "true");
       doorAudio.setAttribute("start-time", document.timeline.currentTime);
-
 
       this.state.animationInterval = setInterval(() => {
         const newY = parseFloat(this.doorElement.getAttribute("y")) + 0.2;
@@ -170,36 +168,89 @@
       const colors = ["red", "green", "blue", "yellow"];
       for (let i = 0; i < 4; i++) {
         if (this.walls[i]) {
-          const wall = document.createElement("m-cube");
-          wall.setAttribute(
-            "x",
-            this.position.x +
-              (directions[i][1] * Cell.cellSize) / 2 +
-              (directions[i][1] * Cell.wallWidth) / 2,
-          );
-          wall.setAttribute("y", Cell.wallHeight / 2);
-          wall.setAttribute(
-            "z",
-            this.position.z +
-              (directions[i][0] * Cell.cellSize) / 2 +
-              (directions[i][0] * Cell.wallDepth) / 2,
-          );
-
-          wall.setAttribute("color", "gray");
-
-          wall.setAttribute(
-            "sx",
-            directions[i][1] === 0 ? Cell.cellSize + Cell.wallWidth : Cell.wallWidth,
-          );
-          wall.setAttribute("sy", Cell.wallHeight);
-          wall.setAttribute(
-            "sz",
-            directions[i][0] === 0 ? Cell.cellSize + Cell.wallDepth : Cell.wallDepth,
-          );
-
+          const wall = this.createTexturedWall(i);
           mazeContainer.appendChild(wall);
         }
       }
+    }
+
+    createCubeWall(i) {
+      const wall = document.createElement("m-cube");
+      wall.setAttribute(
+        "x",
+        this.position.x +
+          (directions[i][1] * Cell.cellSize) / 2 +
+          (directions[i][1] * Cell.wallWidth) / 2,
+      );
+      wall.setAttribute("y", Cell.wallHeight / 2);
+      wall.setAttribute(
+        "z",
+        this.position.z +
+          (directions[i][0] * Cell.cellSize) / 2 +
+          (directions[i][0] * Cell.wallDepth) / 2,
+      );
+
+      wall.setAttribute("color", "gray");
+
+      wall.setAttribute(
+        "sx",
+        directions[i][1] === 0 ? Cell.cellSize + Cell.wallWidth : Cell.wallWidth,
+      );
+      wall.setAttribute("sy", Cell.wallHeight);
+      wall.setAttribute(
+        "sz",
+        directions[i][0] === 0 ? Cell.cellSize + Cell.wallDepth : Cell.wallDepth,
+      );
+
+      return wall;
+    }
+
+    createTexturedWall(i) {
+      // const brickCount = (Cell.cellSize * Math.max(Cell.wallWidth, Cell.wallDepth)) / 0.5;
+
+      const wall = document.createElement("m-model");
+      wall.setAttribute(
+        "src",
+        "https://files.daarfi.me/cobblestone-wall.glb",
+      );
+
+      // const xOffset = directions[i][1] === 0 ? 0 : Math.random() * -.01;
+      // const zOffset = directions[i][0] === 0 ? 0 : Math.random() * -.01;
+
+      const xOffset = i < 2 ? Math.random() * .01 : Math.random() * -.01;
+      const zOffset = i < 2 ? Math.random() * -.01 : Math.random() * .01;
+
+
+
+      const yOffset = Math.random() * .01;
+
+      wall.setAttribute(
+        "x",
+        this.position.x +
+          (directions[i][1] * Cell.cellSize) / 2 +
+          (directions[i][1] * Cell.wallWidth) / 2 + xOffset,
+      );
+
+      wall.setAttribute("y", yOffset);
+
+      wall.setAttribute(
+        "z",
+        this.position.z +
+          (directions[i][0] * Cell.cellSize) / 2 +
+          (directions[i][0] * Cell.wallDepth) / 2 + zOffset,
+      );
+
+      wall.setAttribute("ry", i * 90)
+
+      wall.setAttribute(
+        "sx",
+        2,
+      );
+
+      wall.setAttribute("sy", 1.5);
+      // wall.setAttribute("sz", directions[i][0] === 0 ? 1.5 : 1);
+
+      return wall;
     }
 
     spawnCellLabel() {
@@ -258,7 +309,7 @@
       this.metadata.spawnMazePerformance = t1 - t0;
 
       // maps player connection id to boolean indicating if player is inside maze
-      this.players = {}
+      this.players = {};
       this.playerCount = 0;
 
       this.watchPlayers();
@@ -425,7 +476,7 @@
 
     createPositionProbe() {
       this.probe = document.createElement("m-position-probe");
-      const {x, z } = this.getMazeCenter();
+      const { x, z } = this.getMazeCenter();
       this.probe.setAttribute("id", "maze-position-probe");
       this.probe.setAttribute("x", x);
       this.probe.setAttribute("y", 0);
@@ -445,14 +496,17 @@
         x: this.getMazeRadius() / 2,
         y: 0,
         z: this.getMazeRadius() / 2,
-      }
+      };
     }
 
     watchPlayers() {
       this.probe.addEventListener("positionmove", (event) => {
         const { connectionId, elementRelative, documentRelative } = event.detail;
         const prevPlayerCount = this.playerCount;
-        const isPlayerInside = this.checkBounds(documentRelative.position.x, documentRelative.position.z);
+        const isPlayerInside = this.checkBounds(
+          documentRelative.position.x,
+          documentRelative.position.z,
+        );
         if (connectionId in this.players) {
           const prevValue = this.players[connectionId];
           if (prevValue !== isPlayerInside) {
@@ -471,13 +525,14 @@
         }
 
         this.playerCount !== prevPlayerCount && this.jumbotron.updateLabels();
-      })
+      });
     }
 
     checkBounds(x, z) {
       const lowerBound = 0;
       // note: this assumes that the maze is a square
-      const upperBound = this.grid[this.grid.length - 1][this.grid.length - 1].position.x + Cell.cellSize / 2;
+      const upperBound =
+        this.grid[this.grid.length - 1][this.grid.length - 1].position.x + Cell.cellSize / 2;
       if (x < lowerBound || x >= upperBound || z < lowerBound || z >= upperBound) {
         return false;
       } else {
@@ -485,7 +540,6 @@
       }
     }
   }
-
 
   class Jumbotron {
     constructor(maze) {
@@ -515,8 +569,13 @@
 
     createLabel() {
       const offset = 0.01;
-      const sides = [[this.width/2 + offset, 0], [0, this.depth/2+ offset], [-this.width/2- offset, 0], [0, -this.depth/2 - offset]];
-      const bezel = .1;
+      const sides = [
+        [this.width / 2 + offset, 0],
+        [0, this.depth / 2 + offset],
+        [-this.width / 2 - offset, 0],
+        [0, -this.depth / 2 - offset],
+      ];
+      const bezel = 0.1;
       const labels = [];
       for (let i = 0; i < sides.length; i++) {
         const [x, z] = sides[i];
