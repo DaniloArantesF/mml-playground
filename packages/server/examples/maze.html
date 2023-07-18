@@ -3,7 +3,7 @@
 <script>
   const mazeContainer = document.getElementById("maze");
   const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
-  const DOOR_LABELS = false;
+  const DOOR_LABELS = true;
 
   const directions = [
     [1, 0],
@@ -25,8 +25,7 @@
       };
 
       this.createTexturedDoor();
-      if (DOOR_LABELS)
-        this.createDoorLabel();
+      if (DOOR_LABELS) this.createDoorLabel();
 
       // Create sound tag
       this.audio = document.createElement("m-audio");
@@ -123,7 +122,7 @@
       }
     }
 
-    openDoor(closeAutomatically=false) {
+    openDoor(closeAutomatically = false) {
       const y = this.y;
       this.clearAnimationInterval();
       const doorAudio = this.audio;
@@ -155,6 +154,9 @@
         const newY = parseFloat(this.doorElement.getAttribute("y")) + 0.2;
         this.doorElement.setAttribute("y", newY);
         if (newY >= y) {
+          if (newY > y) {
+            this.doorElement.setAttribute("y", y);
+          }
           this.clearAnimationInterval();
         }
       }, 100);
@@ -164,8 +166,8 @@
       const label = document.createElement("m-label");
       const offset = directions[this.wallIndex];
       label.setAttribute("x", 0);
-      label.setAttribute("y", this.texturedAssetMetadata.height /2);
-      label.setAttribute("z",( this.wallIndex  % 2 === 0 ? offset[0] : offset[1]) * .26);
+      label.setAttribute("y", this.texturedAssetMetadata.height / 2);
+      label.setAttribute("z", (this.wallIndex % 2 === 0 ? offset[0] : offset[1]) * 0.26);
       label.setAttribute("content", "Open");
       label.setAttribute("width", "1");
       label.setAttribute("height", ".5");
@@ -175,7 +177,12 @@
       //   `${this.wallIndex % 2 === 0 ? (this.wallIndex === 0 ? 0 : 1) * 180 : offset[1] * 90}`,
       // );
 
-      label.setAttribute("ry", `${(this.wallIndex % 2 === 0 ? offset[1] * -90 : 180 * this.wallIndex)}`);
+      // label.setAttribute('color', '#525c6a');
+      // label.setAttribute('font-color', '#ffffff');
+      label.setAttribute(
+        "ry",
+        `${this.wallIndex % 2 === 0 ? offset[1] * -90 : 180 * this.wallIndex}`,
+      );
 
       label.setAttribute("onclick", `openDoor("${this.id}", true)`);
       this.doorElement.appendChild(label);
@@ -217,10 +224,11 @@
       const colors = ["red", "green", "blue", "yellow"];
       for (let i = 0; i < 4; i++) {
         if (this.walls[i]) {
-          const wall = this.createTexturedWall(i);
           const ground = this.createTexturedGround();
           mazeContainer.appendChild(ground);
-          mazeContainer.appendChild(wall);
+
+          const wall = this.createTexturedWall(i);
+          wall && mazeContainer.appendChild(wall);
         }
       }
     }
@@ -260,27 +268,25 @@
       const wall = document.createElement("m-model");
       wall.setAttribute("src", "https://files.daarfi.me/cobblestone-wall.glb");
 
-      const xOffset = i < 2 ? Math.random() * 0.01 : Math.random() * -0.01;
-      const zOffset = i < 2 ? Math.random() * -0.01 : Math.random() * 0.01;
+      const outerWallOffset = this.isOuterWall(i) ? 0.02 : 0;
+      const xOffset =
+        (i < 2 ? Math.random() * 0.01 : Math.random() * -0.01) + directions[i][1] * outerWallOffset;
+      const zOffset =
+        (i < 2 ? Math.random() * -0.01 : Math.random() * 0.01) + directions[i][0] * outerWallOffset;
       const yOffset = Math.random() * 0.01;
 
-      wall.setAttribute(
-        "x",
+      const baseX =
         this.position.x +
-          (directions[i][1] * Cell.cellSize) / 2 +
-          (directions[i][1] * Cell.wallWidth) / 2 +
-          xOffset,
-      );
-
-      wall.setAttribute("y", yOffset);
-
-      wall.setAttribute(
-        "z",
+        (directions[i][1] * Cell.cellSize) / 2 +
+        (directions[i][1] * Cell.wallWidth) / 2;
+      const baseZ =
         this.position.z +
-          (directions[i][0] * Cell.cellSize) / 2 +
-          (directions[i][0] * Cell.wallDepth) / 2 +
-          zOffset,
-      );
+        (directions[i][0] * Cell.cellSize) / 2 +
+        (directions[i][0] * Cell.wallDepth) / 2;
+
+      wall.setAttribute("x", baseX + xOffset);
+      wall.setAttribute("y", yOffset);
+      wall.setAttribute("z", baseZ + zOffset);
 
       wall.setAttribute("ry", i * 90);
 
@@ -290,7 +296,27 @@
       );
 
       wall.setAttribute("sy", 2);
+
+      // Add wall to wall map
+      // Don't add walls that overlap each other
+      if (this.maze) {
+        const wallKey = `${baseX}:${baseZ}`;
+        if (this.maze.wallMap[wallKey]) {
+          return null;
+        }
+        this.maze.wallMap[wallKey] = wall;
+      }
+
       return wall;
+    }
+
+    isOuterWall(wallIndex) {
+      const isTopRow = this.row === this.maze.gridSize - 1 && wallIndex === 0;
+      const isLeftColumn = this.column === 0 && wallIndex === 1;
+      const isBottomRow = this.row === 0 && wallIndex === 2;
+
+      const isRightColumn = this.column === this.maze.gridSize - 1 && wallIndex === 3;
+      return isBottomRow || isTopRow || isLeftColumn || isRightColumn;
     }
 
     createTexturedGround() {
@@ -324,11 +350,15 @@
       const door = new Door(this, wallIndex);
       this.doors[door.id] = door;
     }
+
+    setMaze(maze) {
+      this.maze = maze;
+    }
   }
 
   class Maze {
     constructor() {
-      this.gridSize = 2;
+      this.gridSize = 10;
       this.grid = [];
       this.playerCount = 0;
       this.createGrid();
@@ -350,6 +380,10 @@
         createMazePerformance: 0,
         spawnMazePerformance: 0,
       };
+
+      // Maps coords to walls
+      // Used to avoid creating multiple walls in the same coords
+      this.wallMap = {};
 
       let t0 = performance.now();
       this.createMaze();
@@ -477,6 +511,7 @@
       for (let y = 0; y < this.grid.length; y++) {
         for (let x = 0; x < this.grid[y].length; x++) {
           // this.grid[y][x].spawnCellLabel();
+          this.grid[y][x].setMaze(this);
           this.grid[y][x].spawnCellWalls();
         }
       }
@@ -684,7 +719,7 @@
 
   const maze = new Maze();
 
-  function openDoor(doorId, closeAutomatically=false) {
+  function openDoor(doorId, closeAutomatically = false) {
     const [row, column, wallIndex] = doorId.split(":").map((x) => parseInt(x));
     maze.grid[row][column].doors[doorId].openDoor(closeAutomatically);
   }
