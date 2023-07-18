@@ -3,6 +3,7 @@
 <script>
   const mazeContainer = document.getElementById("maze");
   const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
+  const DOOR_LABELS = false;
 
   const directions = [
     [1, 0],
@@ -24,6 +25,8 @@
       };
 
       this.createTexturedDoor();
+      if (DOOR_LABELS)
+        this.createDoorLabel();
 
       // Create sound tag
       this.audio = document.createElement("m-audio");
@@ -120,7 +123,7 @@
       }
     }
 
-    openDoor() {
+    openDoor(closeAutomatically=false) {
       const y = this.y;
       this.clearAnimationInterval();
       const doorAudio = this.audio;
@@ -132,6 +135,11 @@
         this.doorElement.setAttribute("y", newY);
         if (newY <= -1 * this.doorHeight) {
           this.clearAnimationInterval();
+          if (closeAutomatically) {
+            setTimeout(() => {
+              this.closeDoor();
+            }, 1000);
+          }
         }
       }, 100);
     }
@@ -150,6 +158,27 @@
           this.clearAnimationInterval();
         }
       }, 100);
+    }
+
+    createDoorLabel() {
+      const label = document.createElement("m-label");
+      const offset = directions[this.wallIndex];
+      label.setAttribute("x", 0);
+      label.setAttribute("y", this.texturedAssetMetadata.height /2);
+      label.setAttribute("z",( this.wallIndex  % 2 === 0 ? offset[0] : offset[1]) * .26);
+      label.setAttribute("content", "Open");
+      label.setAttribute("width", "1");
+      label.setAttribute("height", ".5");
+      label.setAttribute("rx", "0");
+      // label.setAttribute(
+      //   "ry",
+      //   `${this.wallIndex % 2 === 0 ? (this.wallIndex === 0 ? 0 : 1) * 180 : offset[1] * 90}`,
+      // );
+
+      label.setAttribute("ry", `${(this.wallIndex % 2 === 0 ? offset[1] * -90 : 180 * this.wallIndex)}`);
+
+      label.setAttribute("onclick", `openDoor("${this.id}", true)`);
+      this.doorElement.appendChild(label);
     }
   }
 
@@ -299,7 +328,7 @@
 
   class Maze {
     constructor() {
-      this.gridSize = 10;
+      this.gridSize = 2;
       this.grid = [];
       this.playerCount = 0;
       this.createGrid();
@@ -655,8 +684,8 @@
 
   const maze = new Maze();
 
-  function openDoor(doorId) {
+  function openDoor(doorId, closeAutomatically=false) {
     const [row, column, wallIndex] = doorId.split(":").map((x) => parseInt(x));
-    maze.grid[row][column].doors[doorId].openDoor();
+    maze.grid[row][column].doors[doorId].openDoor(closeAutomatically);
   }
 </script>
