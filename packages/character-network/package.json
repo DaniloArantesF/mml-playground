@@ -17,7 +17,7 @@
     "lint:fix": "eslint \"./src/**/*.{ts,}\" --fix"
   },
   "dependencies": {
-    "three": "^0.153.0",
+    "three": "^0.154.0",
     "ws": "^8.13.0"
   },
   "devDependencies": {

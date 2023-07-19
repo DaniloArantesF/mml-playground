@@ -4,7 +4,7 @@
   const mazeContainer = document.getElementById("maze");
   const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
   const DOOR_LABELS = true;
-  const REFRESH_INTERVAL = null;//30 * 60 * 1000; // 30 minutes
+  const REFRESH_INTERVAL = null; //30 * 60 * 1000; // 30 minutes
 
   const directions = [
     [1, 0],
@@ -74,7 +74,7 @@
       this.doorElement = document.createElement("m-model");
       this.doorElement.setAttribute("id", this.id);
       this.doorElement.setAttribute("src", "https://files.daarfi.me/door.glb");
-
+      this.doorElement.setAttribute("collide", "true");
       const offset = directions[this.wallIndex];
       const x = this.cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
       const z = this.cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
@@ -90,6 +90,7 @@
       this.doorElement.setAttribute("sy", Cell.wallHeight / this.texturedAssetMetadata.height);
 
       this.doorElement.setAttribute("ry", this.wallIndex * 90);
+      this.doorElement.setAttribute("onclick", `openDoor("${this.id}", true)`);
     }
 
     setupPositionProbe() {
@@ -270,6 +271,7 @@
     createTexturedWall(i) {
       const wall = document.createElement("m-model");
       wall.setAttribute("src", "https://files.daarfi.me/cobblestone-wall.glb");
+      wall.setAttribute("collide", "true");
 
       const outerWallOffset = this.isOuterWall(i) ? 0.02 : 0;
       const xOffset =
@@ -325,6 +327,7 @@
     createTexturedGround() {
       const ground = document.createElement("m-model");
       ground.setAttribute("src", "https://files.daarfi.me/cobblestone-ground.glb");
+      ground.setAttribute("collide", "true");
 
       ground.setAttribute("x", this.position.x);
       ground.setAttribute("y", Math.random() * 0.01);
@@ -390,6 +393,8 @@
   }
 
   class Maze {
+    static mazeHeightOffset = 5;
+
     constructor() {
       this.gridSize = 4;
       this.grid = [];
@@ -450,6 +455,11 @@
           this.jumbotron.updateLabels();
         }, 1000);
       }
+
+      const elevatorAnimationInterval = null;
+      mazeContainer.setAttribute("y", Maze.mazeHeightOffset);
+      this.createMazeGround();
+      this.spawnElevator();
     }
 
     // Creates cell objects and adds them to the grid array
@@ -624,7 +634,7 @@
     }
 
     getMazeRadius() {
-      return this.grid.length * Cell.cellSize;
+      return this.grid.length * Cell.cellSize + (Cell.wallDepth * this.grid.length) / 2;
     }
 
     getMazeCenter() {
@@ -708,6 +718,37 @@
       console.log("Call to spawnMaze took " + (t1 - t0) + " milliseconds.");
       this.metadata.spawnMazePerformance = t1 - t0;
     }
+
+    createMazeGround() {
+      const ground = document.createElement("m-cube");
+      ground.setAttribute("id", "maze-ground");
+      ground.setAttribute("width", `${2 * this.getMazeRadius()}`);
+      ground.setAttribute("depth", `${2 * this.getMazeRadius()}`);
+      ground.setAttribute("height", "0.1");
+
+      const { x, z } = this.getMazeCenter();
+      ground.setAttribute("x", x);
+      ground.setAttribute("y", -0.05);
+      ground.setAttribute("z", z);
+      ground.setAttribute("collide", "true");
+      ground.setAttribute("color", "#000000");
+      mazeContainer.appendChild(ground);
+    }
+
+    spawnElevator() {
+      const elevator = document.createElement("m-cube");
+      elevator.setAttribute("id", "maze-elevator");
+      elevator.setAttribute("width", `${2}`);
+      elevator.setAttribute("depth", `${2}`);
+      elevator.setAttribute("height", "1");
+      elevator.setAttribute("y", `${-1 * Maze.mazeHeightOffset}`);
+      elevator.setAttribute("x", `${-0.6 * this.getMazeRadius()}`);
+      elevator.setAttribute("onclick", "activateElevator()");
+      elevator.setAttribute("collide", "true");
+      mazeContainer.appendChild(elevator);
+
+      this.elevator = elevator;
+    }
   }
 
   class Jumbotron {
@@ -789,7 +830,11 @@
     }
 
     updateLabels() {
-      const content = `Players: ${this.maze.playerCount}\n${this.maze.nextUpdate ? `Time Remaining: ${((this.maze.nextUpdate - Date.now()) / 1000).toFixed(0)}s` : ''}`;
+      const content = `Players: ${this.maze.playerCount}\n${
+        this.maze.nextUpdate
+          ? `Time Remaining: ${((this.maze.nextUpdate - Date.now()) / 1000).toFixed(0)}s`
+          : ""
+      }`;
       for (let i = 0; i < this.labels.length; i++) {
         this.labels[i].setAttribute("content", content);
       }
@@ -801,5 +846,35 @@
   function openDoor(doorId, closeAutomatically = false) {
     const [row, column, wallIndex] = doorId.split(":").map((x) => parseInt(x));
     maze.grid[row][column].doors[doorId].openDoor(closeAutomatically);
+  }
+
+  function activateElevator() {
+    clearInterval(maze.elevatorAnimationInterval);
+    maze.elevatorAnimationInterval = setInterval(() => {
+      const elevator = maze.elevator;
+      const y = parseFloat(elevator.getAttribute("y"));
+      if (y < 0) {
+        elevator.setAttribute("y", y + 0.2);
+      } else {
+        clearInterval(maze.elevatorAnimationInterval);
+        setTimeout(() => {
+          lowerElevator();
+        }, 2000);
+      }
+    }, 100);
+  }
+
+  function lowerElevator() {
+    clearInterval(maze.elevatorAnimationInterval);
+    maze.elevatorAnimationInterval = setInterval(() => {
+      const elevator = maze.elevator;
+      const y = parseFloat(elevator.getAttribute("y"));
+      if (y > -1 * Maze.mazeHeightOffset) {
+        elevator.setAttribute("y", y - 0.2);
+      } else {
+        elevator.setAttribute("y", -1 * Maze.mazeHeightOffset);
+        clearInterval(maze.elevatorAnimationInterval);
+      }
+    }, 100);
   }
 </script>
