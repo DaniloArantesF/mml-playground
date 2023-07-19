@@ -4,6 +4,7 @@
   const mazeContainer = document.getElementById("maze");
   const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
   const DOOR_LABELS = true;
+  const REFRESH_INTERVAL = null;//30 * 60 * 1000; // 30 minutes
 
   const directions = [
     [1, 0],
@@ -209,6 +210,7 @@
       };
 
       this.doors = {};
+      this.wallElements = {};
     }
 
     // returns the position of the center of the cell in the world
@@ -228,6 +230,7 @@
           mazeContainer.appendChild(ground);
 
           const wall = this.createTexturedWall(i);
+          this.wallElements[i] = wall;
           wall && mazeContainer.appendChild(wall);
         }
       }
@@ -354,11 +357,41 @@
     setMaze(maze) {
       this.maze = maze;
     }
+
+    resetCell() {
+      this.visited = false;
+      this.walls = [true, true, true, true];
+
+      // Remove all doors
+      for (const doorId in this.doors) {
+        if (this.doors.hasOwnProperty(doorId)) {
+          const door = this.doors[doorId];
+
+          // Remove position probe
+          mazeContainer?.removeChild(door.probe);
+
+          // Remove door
+          mazeContainer?.removeChild(door.doorElement);
+
+          this.doors[doorId] = null;
+        }
+      }
+      this.doors = {};
+
+      // Remove all walls
+      for (let i = 0; i < 4; i++) {
+        const wall = this.wallElements[i];
+        if (wall) {
+          wall.parentNode?.removeChild(wall);
+          this.wallElements[i] = null;
+        }
+      }
+    }
   }
 
   class Maze {
     constructor() {
-      this.gridSize = 10;
+      this.gridSize = 4;
       this.grid = [];
       this.playerCount = 0;
       this.createGrid();
@@ -404,6 +437,19 @@
       this.watchPlayers();
       this.jumbotron = new Jumbotron(this);
       this.createInfoLabel();
+
+      if (REFRESH_INTERVAL) {
+        this.nextUpdate = Date.now() + REFRESH_INTERVAL;
+        setInterval(() => {
+          this.refreshMaze();
+          this.nextUpdate = Date.now() + REFRESH_INTERVAL;
+        }, REFRESH_INTERVAL);
+
+        // Update jumbotron
+        setInterval(() => {
+          this.jumbotron.updateLabels();
+        }, 1000);
+      }
     }
 
     // Creates cell objects and adds them to the grid array
@@ -572,7 +618,7 @@
       this.probe.setAttribute("y", 0);
       this.probe.setAttribute("z", z);
       this.probe.setAttribute("range", this.getMazeRadius());
-      this.probe.setAttribute("interval", "1000");
+      this.probe.setAttribute("interval", "500");
       this.probe.setAttribute("debug", "false");
       mazeContainer.appendChild(this.probe);
     }
@@ -628,6 +674,39 @@
       } else {
         return true;
       }
+    }
+
+    refreshMaze() {
+      this.wallMap = {};
+
+      // Reset grid
+      for (let y = 0; y < this.grid.length; y++) {
+        for (let x = 0; x < this.grid[y].length; x++) {
+          this.grid[y][x].resetCell();
+        }
+      }
+
+      this.currentCell = this.grid[0][0];
+
+      // Create Entrance
+      this.currentCell.walls[1] = false;
+      this.currentCell.createDoor(1);
+
+      // Create Exit
+      this.grid[this.gridSize - 1][this.gridSize - 1].walls[0] = false;
+      this.grid[this.gridSize - 1][this.gridSize - 1].createDoor(0);
+
+      let t0 = performance.now();
+      this.createMaze();
+      let t1 = performance.now();
+      console.log("Call to createMaze took " + (t1 - t0) + " milliseconds.");
+      this.metadata.createMazePerformance = t1 - t0;
+
+      t0 = performance.now();
+      this.spawnMaze();
+      t1 = performance.now();
+      console.log("Call to spawnMaze took " + (t1 - t0) + " milliseconds.");
+      this.metadata.spawnMazePerformance = t1 - t0;
     }
   }
 
@@ -710,7 +789,7 @@
     }
 
     updateLabels() {
-      const content = `Players: ${this.maze.playerCount}\nTime Remaining: ${-1}`;
+      const content = `Players: ${this.maze.playerCount}\n${this.maze.nextUpdate ? `Time Remaining: ${((this.maze.nextUpdate - Date.now()) / 1000).toFixed(0)}s` : ''}`;
       for (let i = 0; i < this.labels.length; i++) {
         this.labels[i].setAttribute("content", content);
       }
