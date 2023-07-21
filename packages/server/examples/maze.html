@@ -4,7 +4,7 @@
   const mazeContainer = document.getElementById("maze");
   const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
   const DOOR_LABELS = true;
-  const REFRESH_INTERVAL = null; //30 * 60 * 1000; // 30 minutes
+  const REFRESH_INTERVAL = null; 15 * 1000; //30 * 60 * 1000; // 30 minutes
 
   const directions = [
     [1, 0],
@@ -25,6 +25,7 @@
         depth: 1,
       };
 
+      this.innerDoorElement = this.createCubeDoor();
       this.createTexturedDoor();
       if (DOOR_LABELS) this.createDoorLabel();
 
@@ -38,7 +39,10 @@
       this.audio.setAttribute("debug", "false");
 
       this.doorElement.appendChild(this.audio);
+      // mazeContainer.appendChild(this.innerDoorElement);
       mazeContainer.appendChild(this.doorElement);
+      this.doorElement.appendChild(this.innerDoorElement);
+
 
       this.setupPositionProbe();
       this.state = {
@@ -47,7 +51,7 @@
     }
 
     createCubeDoor() {
-      this.doorElement = document.createElement("m-cube");
+      const door = document.createElement("m-cube");
 
       const width = this.wallIndex % 2 === 0 ? Cell.cellSize + Cell.wallWidth / 2 : Cell.wallWidth;
       const depth = this.wallIndex % 2 !== 0 ? Cell.cellSize + Cell.wallDepth / 2 : Cell.wallDepth;
@@ -56,18 +60,24 @@
       const x = this.cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
       const z = this.cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
 
-      this.doorElement.setAttribute("id", this.id);
-      this.doorElement.setAttribute("width", width);
-      this.doorElement.setAttribute("height", Cell.wallHeight + 0.001);
-      this.doorElement.setAttribute("depth", depth);
+      const scaleOffset = -.1;
+      door.setAttribute("id", this.id);
+      door.setAttribute("width", width + scaleOffset);
+      door.setAttribute("height", Cell.wallHeight + 0.001 + scaleOffset);
+      door.setAttribute("depth", depth + scaleOffset);
 
       this.y = this.cell.position.y + Cell.wallHeight / 2;
-      this.doorElement.setAttribute("x", x);
-      this.doorElement.setAttribute("y", this.y);
-      this.doorElement.setAttribute("z", z);
-
+      // door.setAttribute("x", x);
+      door.setAttribute("y", this.y);
+      // door.setAttribute("z", z);
+      door.setAttribute(
+        "ry",
+        `${this.wallIndex * 90}`,
+      );
       this.doorHeight = Cell.wallHeight;
-      this.doorElement.setAttribute("color", "#000000");
+      door.setAttribute("color", "#000000");
+      door.setAttribute("onclick", `openDoor("${this.id}", true)`);
+      return door;
     }
 
     createTexturedDoor() {
@@ -231,8 +241,10 @@
           mazeContainer.appendChild(ground);
 
           const wall = this.createTexturedWall(i);
-          this.wallElements[i] = wall;
+          const innerWall = this.createCubeWall(i);
           wall && mazeContainer.appendChild(wall);
+          innerWall && mazeContainer.appendChild(innerWall);
+          this.wallElements[i] = [wall, innerWall];
         }
       }
     }
@@ -255,16 +267,18 @@
 
       wall.setAttribute("color", "gray");
 
+      const offset = -.1;
       wall.setAttribute(
         "sx",
-        directions[i][1] === 0 ? Cell.cellSize + Cell.wallWidth : Cell.wallWidth,
+        (directions[i][1] === 0 ? Cell.cellSize + Cell.wallWidth : Cell.wallWidth) + offset,
       );
       wall.setAttribute("sy", Cell.wallHeight);
       wall.setAttribute(
         "sz",
-        directions[i][0] === 0 ? Cell.cellSize + Cell.wallDepth : Cell.wallDepth,
+        (directions[i][0] === 0 ? Cell.cellSize + Cell.wallDepth : Cell.wallDepth) + offset,
       );
 
+      wall.setAttribute('collide', 'true')
       return wall;
     }
 
@@ -366,28 +380,34 @@
       this.walls = [true, true, true, true];
 
       // Remove all doors
-      for (const doorId in this.doors) {
-        if (this.doors.hasOwnProperty(doorId)) {
-          const door = this.doors[doorId];
+      // for (const doorId in this.doors) {
+      //   if (this.doors.hasOwnProperty(doorId)) {
+      //     const door = this.doors[doorId];
 
-          // Remove position probe
-          mazeContainer?.removeChild(door.probe);
+      //     // Remove position probe
+      //     mazeContainer?.removeChild(door.probe);
 
-          // Remove door
-          mazeContainer?.removeChild(door.doorElement);
+      //     // Remove door
+      //     mazeContainer?.removeChild(door.doorElement);
 
-          this.doors[doorId] = null;
-        }
-      }
-      this.doors = {};
+      //     this.doors[doorId] = null;
+      //   }
+      // }
+      // this.doors = {};
 
       // Remove all walls
       for (let i = 0; i < 4; i++) {
-        const wall = this.wallElements[i];
+        const walls = this.wallElements[i];
+        if (!walls) continue;
+        const [wall, innerWall] = walls;
+        // if (innerWall) {
+        //   innerWall.parentNode?.removeChild(innerWall);
+        // }
         if (wall) {
-          wall.parentNode?.removeChild(wall);
-          this.wallElements[i] = null;
+          // wall.parentNode?.removeChild(wall);
         }
+
+        this.wallElements[i] = null;
       }
     }
   }
@@ -731,18 +751,18 @@
       ground.setAttribute("y", -0.05);
       ground.setAttribute("z", z);
       ground.setAttribute("collide", "true");
-      ground.setAttribute("color", "#000000");
+      ground.setAttribute("color", "#233144");
       mazeContainer.appendChild(ground);
     }
 
     spawnElevator() {
       const elevator = document.createElement("m-cube");
       elevator.setAttribute("id", "maze-elevator");
-      elevator.setAttribute("width", `${2}`);
-      elevator.setAttribute("depth", `${2}`);
+      elevator.setAttribute("width", `${3}`);
+      elevator.setAttribute("depth", `${3}`);
       elevator.setAttribute("height", "1");
       elevator.setAttribute("y", `${-1 * Maze.mazeHeightOffset}`);
-      elevator.setAttribute("x", `${-0.6 * this.getMazeRadius()}`);
+      elevator.setAttribute("x", `${-0.5 * this.getMazeRadius() - 1.5}`);
       elevator.setAttribute("onclick", "activateElevator()");
       elevator.setAttribute("collide", "true");
       mazeContainer.appendChild(elevator);
