@@ -4,7 +4,7 @@
   const mazeContainer = document.getElementById("maze");
   const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
   const DOOR_LABELS = true;
-  const REFRESH_INTERVAL = null; 15 * 1000; //30 * 60 * 1000; // 30 minutes
+  const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
   const directions = [
     [1, 0],
@@ -26,8 +26,11 @@
       };
 
       this.innerDoorElement = this.createCubeDoor();
-      this.createTexturedDoor();
+      this.doorElement = this.createTexturedDoor();
       if (DOOR_LABELS) this.createDoorLabel();
+
+      mazeContainer.appendChild(this.doorElement);
+      this.doorElement.appendChild(this.innerDoorElement);
 
       // Create sound tag
       this.audio = document.createElement("m-audio");
@@ -37,12 +40,7 @@
       this.audio.setAttribute("loop", "false");
       this.audio.setAttribute("enabled", "false");
       this.audio.setAttribute("debug", "false");
-
       this.doorElement.appendChild(this.audio);
-      // mazeContainer.appendChild(this.innerDoorElement);
-      mazeContainer.appendChild(this.doorElement);
-      this.doorElement.appendChild(this.innerDoorElement);
-
 
       this.setupPositionProbe();
       this.state = {
@@ -60,7 +58,7 @@
       const x = this.cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
       const z = this.cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
 
-      const scaleOffset = -.1;
+      const scaleOffset = -0.1;
       door.setAttribute("id", this.id);
       door.setAttribute("width", width + scaleOffset);
       door.setAttribute("height", Cell.wallHeight + 0.001 + scaleOffset);
@@ -70,10 +68,7 @@
       // door.setAttribute("x", x);
       door.setAttribute("y", this.y);
       // door.setAttribute("z", z);
-      door.setAttribute(
-        "ry",
-        `${this.wallIndex * 90}`,
-      );
+      door.setAttribute("ry", `${this.wallIndex * 90}`);
       this.doorHeight = Cell.wallHeight;
       door.setAttribute("color", "#000000");
       door.setAttribute("onclick", `openDoor("${this.id}", true)`);
@@ -81,26 +76,27 @@
     }
 
     createTexturedDoor() {
-      this.doorElement = document.createElement("m-model");
-      this.doorElement.setAttribute("id", this.id);
-      this.doorElement.setAttribute("src", "https://files.daarfi.me/door.glb");
-      this.doorElement.setAttribute("collide", "true");
+      const door = document.createElement("m-model");
+      door.setAttribute("id", this.id);
+      door.setAttribute("src", "https://files.daarfi.me/door.glb");
+      door.setAttribute("collide", "true");
       const offset = directions[this.wallIndex];
       const x = this.cell.position.x + offset[1] * (Cell.cellSize / 2 + Cell.wallWidth / 2);
       const z = this.cell.position.z + offset[0] * (Cell.cellSize / 2 + Cell.wallDepth / 2);
 
       this.y = 0;
       this.doorHeight = 4;
-      this.doorElement.setAttribute("x", x);
-      this.doorElement.setAttribute("y", this.y);
-      this.doorElement.setAttribute("z", z);
+      door.setAttribute("x", x);
+      door.setAttribute("y", this.y);
+      door.setAttribute("z", z);
 
       // Scale width and height to match Cell and wall dimensions
-      this.doorElement.setAttribute("sx", Cell.cellSize / this.texturedAssetMetadata.width);
-      this.doorElement.setAttribute("sy", Cell.wallHeight / this.texturedAssetMetadata.height);
+      door.setAttribute("sx", Cell.cellSize / this.texturedAssetMetadata.width);
+      door.setAttribute("sy", Cell.wallHeight / this.texturedAssetMetadata.height);
 
-      this.doorElement.setAttribute("ry", this.wallIndex * 90);
-      this.doorElement.setAttribute("onclick", `openDoor("${this.id}", true)`);
+      door.setAttribute("ry", this.wallIndex * 90);
+      door.setAttribute("onclick", `openDoor("${this.id}", true)`);
+      return door;
     }
 
     setupPositionProbe() {
@@ -240,34 +236,50 @@
           const ground = this.createTexturedGround();
           mazeContainer.appendChild(ground);
 
+          let curWalls = [];
           const wall = this.createTexturedWall(i);
           const innerWall = this.createCubeWall(i);
-          wall && mazeContainer.appendChild(wall);
-          innerWall && mazeContainer.appendChild(innerWall);
-          this.wallElements[i] = [wall, innerWall];
+          if (wall) {
+            mazeContainer.appendChild(wall);
+            curWalls.push(wall);
+          }
+          if (innerWall) {
+            mazeContainer.appendChild(innerWall);
+            curWalls.push(innerWall);
+          }
+          this.wallElements[i] = curWalls;
         }
       }
     }
 
     createCubeWall(i) {
-      const wall = document.createElement("m-cube");
-      wall.setAttribute(
-        "x",
+      let wall = null;
+      const baseX =
         this.position.x +
-          (directions[i][1] * Cell.cellSize) / 2 +
-          (directions[i][1] * Cell.wallWidth) / 2,
-      );
-      wall.setAttribute("y", Cell.wallHeight / 2);
-      wall.setAttribute(
-        "z",
+        (directions[i][1] * Cell.cellSize) / 2 +
+        (directions[i][1] * Cell.wallWidth) / 2;
+      const baseZ =
         this.position.z +
-          (directions[i][0] * Cell.cellSize) / 2 +
-          (directions[i][0] * Cell.wallDepth) / 2,
-      );
+        (directions[i][0] * Cell.cellSize) / 2 +
+        (directions[i][0] * Cell.wallDepth) / 2;
 
+      // Check if wall already exists
+      // Don't add walls that overlap each other
+      if (this.maze) {
+        const wallKey = `${baseX}:${baseZ}`;
+        if (this.maze.wallMap[wallKey]) {
+          return null;
+        }
+        // Only create element if needed
+        wall = document.createElement("m-cube");
+      }
+
+      wall.setAttribute("x", baseX);
+      wall.setAttribute("y", Cell.wallHeight / 2);
+      wall.setAttribute("z", baseZ);
       wall.setAttribute("color", "gray");
 
-      const offset = -.1;
+      const offset = -0.1;
       wall.setAttribute(
         "sx",
         (directions[i][1] === 0 ? Cell.cellSize + Cell.wallWidth : Cell.wallWidth) + offset,
@@ -278,22 +290,18 @@
         (directions[i][0] === 0 ? Cell.cellSize + Cell.wallDepth : Cell.wallDepth) + offset,
       );
 
-      wall.setAttribute('collide', 'true')
+      wall.setAttribute("collide", "true");
       return wall;
     }
 
     createTexturedWall(i) {
-      const wall = document.createElement("m-model");
-      wall.setAttribute("src", "https://files.daarfi.me/cobblestone-wall.glb");
-      wall.setAttribute("collide", "true");
-
+      let wall = null;
       const outerWallOffset = this.isOuterWall(i) ? 0.02 : 0;
       const xOffset =
         (i < 2 ? Math.random() * 0.01 : Math.random() * -0.01) + directions[i][1] * outerWallOffset;
       const zOffset =
         (i < 2 ? Math.random() * -0.01 : Math.random() * 0.01) + directions[i][0] * outerWallOffset;
       const yOffset = Math.random() * 0.01;
-
       const baseX =
         this.position.x +
         (directions[i][1] * Cell.cellSize) / 2 +
@@ -303,6 +311,20 @@
         (directions[i][0] * Cell.cellSize) / 2 +
         (directions[i][0] * Cell.wallDepth) / 2;
 
+      // Check if wall already exists
+      // Don't add walls that overlap each other
+      if (this.maze) {
+        const wallKey = `${baseX}:${baseZ}`;
+        if (this.maze.wallMap[wallKey]) {
+          return null;
+        }
+        // Only create element if needed
+        wall = document.createElement("m-model");
+        this.maze.wallMap[wallKey] = wall;
+      }
+
+      wall.setAttribute("src", "https://files.daarfi.me/cobblestone-wall.glb");
+      wall.setAttribute("collide", "true");
       wall.setAttribute("x", baseX + xOffset);
       wall.setAttribute("y", yOffset);
       wall.setAttribute("z", baseZ + zOffset);
@@ -315,16 +337,6 @@
       );
 
       wall.setAttribute("sy", 2);
-
-      // Add wall to wall map
-      // Don't add walls that overlap each other
-      if (this.maze) {
-        const wallKey = `${baseX}:${baseZ}`;
-        if (this.maze.wallMap[wallKey]) {
-          return null;
-        }
-        this.maze.wallMap[wallKey] = wall;
-      }
 
       return wall;
     }
@@ -388,6 +400,8 @@
       //     mazeContainer?.removeChild(door.probe);
 
       //     // Remove door
+      //     //door.innerDoorElement?.parentNode?.removeChild(door.innerDoorElement); also doesnt work
+      //     door.doorElement.removeChild(door.innerDoorElement);
       //     mazeContainer?.removeChild(door.doorElement);
 
       //     this.doors[doorId] = null;
@@ -400,15 +414,16 @@
         const walls = this.wallElements[i];
         if (!walls) continue;
         const [wall, innerWall] = walls;
-        // if (innerWall) {
-        //   innerWall.parentNode?.removeChild(innerWall);
-        // }
+        if (innerWall) {
+          innerWall.parentNode?.removeChild(innerWall);
+        }
         if (wall) {
-          // wall.parentNode?.removeChild(wall);
+          wall.parentNode?.removeChild(wall);
         }
 
         this.wallElements[i] = null;
       }
+      this.wallElements = {};
     }
   }
 
@@ -718,13 +733,13 @@
 
       this.currentCell = this.grid[0][0];
 
-      // Create Entrance
+      // // Create Entrance
       this.currentCell.walls[1] = false;
-      this.currentCell.createDoor(1);
+      // this.currentCell.createDoor(1);
 
-      // Create Exit
+      // // Create Exit
       this.grid[this.gridSize - 1][this.gridSize - 1].walls[0] = false;
-      this.grid[this.gridSize - 1][this.gridSize - 1].createDoor(0);
+      // this.grid[this.gridSize - 1][this.gridSize - 1].createDoor(0);
 
       let t0 = performance.now();
       this.createMaze();
@@ -850,9 +865,11 @@
     }
 
     updateLabels() {
+      const minRemaining = ~~(((this.maze.nextUpdate - Date.now()) / 1000) / 60);
+      const secRemaining = ~~(((this.maze.nextUpdate - Date.now()) / 1000) % 60);
       const content = `Players: ${this.maze.playerCount}\n${
         this.maze.nextUpdate
-          ? `Time Remaining: ${((this.maze.nextUpdate - Date.now()) / 1000).toFixed(0)}s`
+          ? `Time Remaining: ${minRemaining}m ${secRemaining}s`
           : ""
       }`;
       for (let i = 0; i < this.labels.length; i++) {
