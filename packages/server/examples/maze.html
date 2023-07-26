@@ -4,7 +4,7 @@
   const mazeContainer = document.getElementById("maze");
   const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
   const DOOR_LABELS = false;
-  const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+  const REFRESH_INTERVAL = 15 * 1000; // 30 minutes
 
   const directions = [
     [1, 0],
@@ -59,6 +59,8 @@
     createLight() {
       const light = document.createElement("m-light");
       light.setAttribute("y", Torch.assetMetadata.height + .1);
+      // light.setAttribute("x", -.3)
+      // light.setAttribute("rz", "-25");
       light.setAttribute("color", "#ffd700");
       light.setAttribute("intensity", ".1")
       light.setAttribute("debug", "false");
@@ -194,9 +196,10 @@
       door.setAttribute("depth", depth + scaleOffset);
 
       this.y = this.cell.position.y + Cell.wallHeight / 2;
+      // door.setAttribute("x", x);
       door.setAttribute("y", this.y);
+      // door.setAttribute("z", z);
       door.setAttribute("ry", `${this.wallIndex * 90}`);
-
       this.doorHeight = Cell.wallHeight;
       door.setAttribute("color", "#000000");
       door.setAttribute("onclick", `openDoor("${this.id}", true)`);
@@ -254,6 +257,7 @@
         clearInterval(this.state.animationInterval);
         this.state.animationInterval = null;
         this.audio.setAttribute("enabled", "false");
+        // this.audio.setAttribute("pause-time", "0");
       }
     }
 
@@ -307,6 +311,13 @@
       label.setAttribute("width", "1");
       label.setAttribute("height", ".5");
       label.setAttribute("rx", "0");
+      // label.setAttribute(
+      //   "ry",
+      //   `${this.wallIndex % 2 === 0 ? (this.wallIndex === 0 ? 0 : 1) * 180 : offset[1] * 90}`,
+      // );
+
+      // label.setAttribute('color', '#525c6a');
+      // label.setAttribute('font-color', '#ffffff');
       label.setAttribute(
         "ry",
         `${this.wallIndex % 2 === 0 ? offset[1] * -90 : 180 * this.wallIndex}`,
@@ -566,10 +577,11 @@
   }
 
   class Maze {
-    static mazeHeightOffset = 5;
+    // static mazeHeightOffset = 5;
+    static mazeHeightOffset = 0.5;
 
     constructor() {
-      this.gridSize = 10;
+      this.gridSize = 4;
       this.grid = [];
       this.playerCount = 0;
       this.createGrid();
@@ -635,9 +647,9 @@
       const elevatorAnimationInterval = null;
       mazeContainer.setAttribute("y", Maze.mazeHeightOffset);
       mazeContainer.setAttribute("ry", "180")
-
+      // this.createMazeGround();
       this.mazeGround = new MazeGround(this);
-      this.spawnElevator();
+      // this.spawnElevator();
     }
 
     // Creates cell objects and adds them to the grid array
@@ -831,7 +843,6 @@
           documentRelative.position.x,
           documentRelative.position.z,
         );
-        console.log({ isPlayerInside });
         if (connectionId in this.players) {
           const prevValue = this.players[connectionId];
           if (prevValue !== isPlayerInside) {
@@ -854,11 +865,17 @@
     }
 
     checkBounds(x, z) {
+      const isRotated = mazeContainer.getAttribute('ry') === '180';
       const lowerBound = 0;
       // note: this assumes that the maze is a square
-      const upperBound =
-        this.grid[this.grid.length - 1][this.grid.length - 1].position.x + Cell.cellSize / 2;
-      if (x < lowerBound || x >= upperBound || z < lowerBound || z >= upperBound) {
+      let upperBound = (this.grid[this.grid.length - 1][this.grid.length - 1].position.x + Cell.cellSize / 2);
+
+      if (isRotated) {
+        upperBound = -1 * upperBound
+      }
+      if (!isRotated && (x < lowerBound || x >= upperBound || z < lowerBound || z >= upperBound)) {
+        return false;
+      } else if (isRotated && (x > lowerBound || x <= upperBound || z > lowerBound || z <= upperBound)) {
         return false;
       } else {
         return true;
@@ -937,7 +954,7 @@
       elevatorCollider.setAttribute("collide", "true");
 
       const label = document.createElement("m-label");
-      label.setAttribute("content", "click the orange lift to go up :)");
+      label.setAttribute("content", "click the red lift to go up :)");
       label.setAttribute("alignment", "center");
       label.setAttribute("width", "3");
       label.setAttribute("y", `${-1 * Maze.mazeHeightOffset + 2}`);
