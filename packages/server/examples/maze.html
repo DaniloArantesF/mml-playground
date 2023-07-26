@@ -3,7 +3,7 @@
 <script>
   const mazeContainer = document.getElementById("maze");
   const defaultDoorSound = "https://files.daarfi.me/brick-door-sound.mp3";
-  const DOOR_LABELS = true;
+  const DOOR_LABELS = false;
   const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
   const directions = [
@@ -12,6 +12,135 @@
     [-1, 0],
     [0, 1],
   ];
+
+  class Torch {
+    static assetUrl = "https://files.daarfi.me/torch.glb";
+    static assetMetadata = {
+        height: 1,
+        width: 0.25,
+        depth: 0.25,
+      };
+
+    constructor(x, y, z) {
+      this.x = x;
+      this.y = y;
+      this.z = z;
+      this.id = `torch-${x}:${y}:${z}`;
+
+
+      this.group = this.createElement();
+      this.element = document.createElement("m-model");
+      this.element.setAttribute("id", this.id);
+      this.element.setAttribute("src", Torch.assetUrl);
+      this.element.setAttribute("sx", ".75")
+      this.element.setAttribute("sy", ".85")
+      this.element.setAttribute("sz", ".75")
+
+      // this.light = this.createLight();
+      // this.element.appendChild(this.light);
+      this.group.appendChild(this.element)
+      mazeContainer.appendChild(this.group);
+    }
+
+    createElement() {
+      const group = document.createElement("m-group");
+      group.setAttribute("x", this.x);
+      group.setAttribute("y", this.y);
+      group.setAttribute("z", this.z);
+      return group;
+    }
+
+    rotate(rx, ry, rz) {
+      this.group.setAttribute("rx", rx.toString());
+      this.group.setAttribute("ry", ry.toString());
+      this.group.setAttribute("rz", rz.toString());
+    }
+
+    createLight() {
+      const light = document.createElement("m-light");
+      light.setAttribute("y", Torch.assetMetadata.height + .1);
+      light.setAttribute("color", "#ffd700");
+      light.setAttribute("intensity", ".1")
+      light.setAttribute("debug", "false");
+      light.setAttribute("type", "point");
+
+      return light;
+    }
+  }
+
+  class MazeGround {
+    static assetUrl = "https://files.daarfi.me/mazeGround.glb";
+    static assetMetadata = {
+      width: 36,
+      height: 1,
+      depth: 36,
+    }
+
+    constructor(maze) {
+      this.maze = maze;
+      this.group = document.createElement("m-group");
+      const { x, z } = this.maze.getMazeCenter();
+      this.group.setAttribute("x", x);
+      this.group.setAttribute("y", -0.05);
+      this.group.setAttribute("z", z);
+
+
+      this.element = this.createElement();
+      this.innerCollider = this.createInnerCollider();
+      this.group.appendChild(this.element);
+      this.group.appendChild(this.innerCollider);
+
+      // Torches
+      this.createTorches();
+      mazeContainer.appendChild(this.group);
+    }
+
+    createElement() {
+      const ground = document.createElement("m-model");
+      ground.setAttribute("src", MazeGround.assetUrl);
+      ground.setAttribute("id", "maze-ground");
+      ground.setAttribute("collide", "true");
+      ground.setAttribute("color", "#233144");
+      ground.setAttribute("sy", ".5");
+
+      const desiredLength = 1.5 * this.maze.getMazeRadius() + 2;
+
+      this.length = desiredLength;
+      const scale = desiredLength / MazeGround.assetMetadata.width;
+      ground.setAttribute("sx", scale);
+      ground.setAttribute("sz", scale);
+
+      ground.setAttribute("y", `${- 1.7 * MazeGround.assetMetadata.height}}`);
+      return ground;
+    }
+
+    createInnerCollider() {
+      const ground = document.createElement("m-cube");
+      const scaleOffset = 0.1;
+      ground.setAttribute("width", `${(1.5) * this.maze.getMazeRadius() + 2  - scaleOffset}`);
+      ground.setAttribute("depth", `${(1.5) * this.maze.getMazeRadius() + 2  - scaleOffset}`);
+      ground.setAttribute("y", "-.05");
+      ground.setAttribute("height", "0.1");
+      ground.setAttribute("collide", "true");
+      ground.setAttribute("color", "#233144");
+      return ground;
+    }
+
+    // Spawns torches around the maze ground
+    createTorches() {
+      for (let i = 0; i < directions.length; i++) {
+        const [dx, dz] = directions[i];
+
+        const offset = this.length / 2 - Torch.assetMetadata.width;
+        const torch = new Torch(
+          dx * offset - dz * offset ,
+          0,
+          dz * offset  + dx * offset
+        );
+        this.group.appendChild(torch.group);
+      }
+    }
+  }
 
   class Door {
     constructor(cell, wallIndex) {
@@ -65,10 +194,9 @@
       door.setAttribute("depth", depth + scaleOffset);
 
       this.y = this.cell.position.y + Cell.wallHeight / 2;
-      // door.setAttribute("x", x);
       door.setAttribute("y", this.y);
-      // door.setAttribute("z", z);
       door.setAttribute("ry", `${this.wallIndex * 90}`);
+
       this.doorHeight = Cell.wallHeight;
       door.setAttribute("color", "#000000");
       door.setAttribute("onclick", `openDoor("${this.id}", true)`);
@@ -126,7 +254,6 @@
         clearInterval(this.state.animationInterval);
         this.state.animationInterval = null;
         this.audio.setAttribute("enabled", "false");
-        // this.audio.setAttribute("pause-time", "0");
       }
     }
 
@@ -180,13 +307,6 @@
       label.setAttribute("width", "1");
       label.setAttribute("height", ".5");
       label.setAttribute("rx", "0");
-      // label.setAttribute(
-      //   "ry",
-      //   `${this.wallIndex % 2 === 0 ? (this.wallIndex === 0 ? 0 : 1) * 180 : offset[1] * 90}`,
-      // );
-
-      // label.setAttribute('color', '#525c6a');
-      // label.setAttribute('font-color', '#ffffff');
       label.setAttribute(
         "ry",
         `${this.wallIndex % 2 === 0 ? offset[1] * -90 : 180 * this.wallIndex}`,
@@ -218,6 +338,7 @@
 
       this.doors = {};
       this.wallElements = {};
+      this.torches = {};
     }
 
     // returns the position of the center of the cell in the world
@@ -242,8 +363,6 @@
           if (wall) {
             mazeContainer.appendChild(wall);
             curWalls.push(wall);
-          }
-          if (innerWall) {
             mazeContainer.appendChild(innerWall);
             curWalls.push(innerWall);
           }
@@ -253,7 +372,7 @@
     }
 
     createCubeWall(i) {
-      let wall = null;
+      let wall = document.createElement("m-cube");
       const baseX =
         this.position.x +
         (directions[i][1] * Cell.cellSize) / 2 +
@@ -265,14 +384,14 @@
 
       // Check if wall already exists
       // Don't add walls that overlap each other
-      if (this.maze) {
-        const wallKey = `${baseX}:${baseZ}`;
-        if (this.maze.wallMap[wallKey]) {
-          return null;
-        }
-        // Only create element if needed
-        wall = document.createElement("m-cube");
-      }
+      // if (this.maze) {
+      //   const wallKey = `${baseX}:${baseZ}`;
+      //   if (this.maze.wallMap[wallKey]) {
+      //     return null;
+      //   }
+      //   // Only create element if needed
+      //   wall = document.createElement("m-cube");
+      // }
 
       wall.setAttribute("x", baseX);
       wall.setAttribute("y", Cell.wallHeight / 2);
@@ -383,6 +502,25 @@
       this.doors[door.id] = door;
     }
 
+    // Creates a torch on the outside of a wall
+    createWallTorch(wallIndex) {
+      const baseX =
+        this.position.x +
+        (directions[wallIndex][1] * Cell.cellSize) / 2 +
+        (directions[wallIndex][1] * Cell.wallWidth) / 2;
+      const baseZ =
+        this.position.z +
+        (directions[wallIndex][0] * Cell.cellSize) / 2 +
+        (directions[wallIndex][0] * Cell.wallDepth) / 2;
+
+      const offsetX = directions[wallIndex][1] * (.75 * Torch.assetMetadata.depth);
+      const offsetZ = directions[wallIndex][0] * (.75 * Torch.assetMetadata.depth);
+      const torch = new Torch(baseX + offsetX, Cell.wallHeight - (Torch.assetMetadata.height/2), baseZ + offsetZ);
+
+      torch.rotate(0, 0, 45)
+      this.torches[torch.id] = torch;
+    }
+
     setMaze(maze) {
       this.maze = maze;
     }
@@ -431,7 +569,7 @@
     static mazeHeightOffset = 5;
 
     constructor() {
-      this.gridSize = 4;
+      this.gridSize = 10;
       this.grid = [];
       this.playerCount = 0;
       this.createGrid();
@@ -478,6 +616,9 @@
       this.jumbotron = new Jumbotron(this);
       this.createInfoLabel();
 
+      // Spawn torches
+      this.grid[1][0].createWallTorch(1);
+
       if (REFRESH_INTERVAL) {
         this.nextUpdate = Date.now() + REFRESH_INTERVAL;
         setInterval(() => {
@@ -493,7 +634,9 @@
 
       const elevatorAnimationInterval = null;
       mazeContainer.setAttribute("y", Maze.mazeHeightOffset);
-      this.createMazeGround();
+      mazeContainer.setAttribute("ry", "180")
+
+      this.mazeGround = new MazeGround(this);
       this.spawnElevator();
     }
 
@@ -688,6 +831,7 @@
           documentRelative.position.x,
           documentRelative.position.z,
         );
+        console.log({ isPlayerInside });
         if (connectionId in this.players) {
           const prevValue = this.players[connectionId];
           if (prevValue !== isPlayerInside) {
@@ -771,18 +915,41 @@
     }
 
     spawnElevator() {
-      const elevator = document.createElement("m-cube");
-      elevator.setAttribute("id", "maze-elevator");
-      elevator.setAttribute("width", `${3}`);
-      elevator.setAttribute("depth", `${3}`);
-      elevator.setAttribute("height", "1");
-      elevator.setAttribute("y", `${-1 * Maze.mazeHeightOffset}`);
-      elevator.setAttribute("x", `${-0.5 * this.getMazeRadius() - 1.5}`);
-      elevator.setAttribute("onclick", "activateElevator()");
-      elevator.setAttribute("collide", "true");
-      mazeContainer.appendChild(elevator);
+      this.elevatorAssetMetadata = {
+        width: 2,
+        height: .5,
+        depth: 2,
+      }
+      const elevatorGroup = document.createElement("m-group");
+      elevatorGroup.setAttribute("id", "maze-elevator");
+      elevatorGroup.setAttribute("y", `${-1 * Maze.mazeHeightOffset + this.elevatorAssetMetadata.height / 2}`);
+      elevatorGroup.setAttribute("x", `${-.25 * this.getMazeRadius() - .8 - 2. + .25}`);
 
-      this.elevator = elevator;
+      const elevator = document.createElement("m-model");
+      elevator.setAttribute("src", "https://files.daarfi.me/lift.glb");
+      elevator.setAttribute("onclick", "activateElevator()");
+
+      const elevatorCollider = document.createElement("m-cube");
+      elevatorCollider.setAttribute("width", `${this.elevatorAssetMetadata.width - .1}`);
+      elevatorCollider.setAttribute("depth", `${this.elevatorAssetMetadata.depth - .1}`);
+      elevatorCollider.setAttribute("height", `${this.elevatorAssetMetadata.height - .1}`);
+      elevatorCollider.setAttribute("onclick", "activateElevator()");
+      elevatorCollider.setAttribute("collide", "true");
+
+      const label = document.createElement("m-label");
+      label.setAttribute("content", "click the orange lift to go up :)");
+      label.setAttribute("alignment", "center");
+      label.setAttribute("width", "3");
+      label.setAttribute("y", `${-1 * Maze.mazeHeightOffset + 2}`);
+      label.setAttribute("x", `${-0.5 * this.getMazeRadius() + 1.5}`);
+      label.setAttribute("z", "5");
+      label.setAttribute("ry", "-135");
+
+      mazeContainer.appendChild(label);
+      elevatorGroup.appendChild(elevator);
+      elevatorGroup.appendChild(elevatorCollider);
+      mazeContainer.appendChild(elevatorGroup);
+      this.elevator = elevatorGroup;
     }
   }
 
@@ -865,12 +1032,10 @@
     }
 
     updateLabels() {
-      const minRemaining = ~~(((this.maze.nextUpdate - Date.now()) / 1000) / 60);
+      const minRemaining = ~~((this.maze.nextUpdate - Date.now()) / 1000 / 60);
       const secRemaining = ~~(((this.maze.nextUpdate - Date.now()) / 1000) % 60);
       const content = `Players: ${this.maze.playerCount}\n${
-        this.maze.nextUpdate
-          ? `Time Remaining: ${minRemaining}m ${secRemaining}s`
-          : ""
+        this.maze.nextUpdate ? `Time Remaining: ${minRemaining}m ${secRemaining}s` : ""
       }`;
       for (let i = 0; i < this.labels.length; i++) {
         this.labels[i].setAttribute("content", content);
@@ -906,10 +1071,10 @@
     maze.elevatorAnimationInterval = setInterval(() => {
       const elevator = maze.elevator;
       const y = parseFloat(elevator.getAttribute("y"));
-      if (y > -1 * Maze.mazeHeightOffset) {
+      if (y > -1 * Maze.mazeHeightOffset + .25 ) {
         elevator.setAttribute("y", y - 0.2);
       } else {
-        elevator.setAttribute("y", -1 * Maze.mazeHeightOffset);
+        elevator.setAttribute("y", -1 * Maze.mazeHeightOffset + .25);
         clearInterval(maze.elevatorAnimationInterval);
       }
     }, 100);
